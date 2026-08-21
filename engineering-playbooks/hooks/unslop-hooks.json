@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/unslop-activate.js\" SessionStart",
+            "timeout": 5,
+            "statusMessage": "Loading Unslop..."
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/unslop-activate.js\" SubagentStart",
+            "timeout": 5,
+            "statusMessage": "Loading Unslop..."
+          }
+        ]
+      }
+    ]
+  }
+}
