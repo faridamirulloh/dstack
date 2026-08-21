@@ -1,0 +1,5 @@
+interface:
+  display_name: "Principle Boundary Discipline"
+  short_description: "Help with Principle Boundary Discipline tasks"
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Principle Fix Root Causes"
+  short_description: "Help with Principle Fix Root Causes tasks"
+policy:
+  allow_implicit_invocation: false

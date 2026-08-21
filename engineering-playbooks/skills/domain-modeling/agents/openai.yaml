@@ -1,0 +1,5 @@
+interface:
+  display_name: "Domain Modeling"
+  short_description: "Help with Domain Modeling tasks"
+policy:
+  allow_implicit_invocation: false

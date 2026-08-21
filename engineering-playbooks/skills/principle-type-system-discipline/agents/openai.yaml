@@ -1,0 +1,5 @@
+interface:
+  display_name: "Principle Type System Discipline"
+  short_description: "Help with Principle Type System Discipline tasks"
+policy:
+  allow_implicit_invocation: false

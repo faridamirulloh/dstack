@@ -1,0 +1,5 @@
+interface:
+  display_name: "Architect"
+  short_description: "Help with Architect tasks"
+policy:
+  allow_implicit_invocation: false

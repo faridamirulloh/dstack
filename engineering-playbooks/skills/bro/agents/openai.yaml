@@ -1,0 +1,5 @@
+interface:
+  display_name: "Bro"
+  short_description: "Help with Bro tasks and workflows"
+policy:
+  allow_implicit_invocation: false

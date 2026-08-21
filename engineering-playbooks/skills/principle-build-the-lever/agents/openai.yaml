@@ -1,0 +1,5 @@
+interface:
+  display_name: "Principle Build The Lever"
+  short_description: "Help with Principle Build The Lever tasks"
+policy:
+  allow_implicit_invocation: false

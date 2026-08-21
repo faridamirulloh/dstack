@@ -1,0 +1,5 @@
+interface:
+  display_name: "Code Review"
+  short_description: "Help with Code Review tasks"
+policy:
+  allow_implicit_invocation: false

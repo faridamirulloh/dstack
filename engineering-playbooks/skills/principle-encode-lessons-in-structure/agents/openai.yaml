@@ -1,0 +1,5 @@
+interface:
+  display_name: "Principle Encode Lessons In Structure"
+  short_description: "Help with Principle Encode Lessons In Structure tasks"
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Principle Foundational Thinking"
+  short_description: "Help with Principle Foundational Thinking tasks"
+policy:
+  allow_implicit_invocation: false

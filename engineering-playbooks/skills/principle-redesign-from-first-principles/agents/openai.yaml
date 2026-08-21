@@ -1,0 +1,5 @@
+interface:
+  display_name: "Principle Redesign From First Principles"
+  short_description: "Help with Principle Redesign From First Principles tasks"
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Typescript Best Practices"
+  short_description: "Help with Typescript Best Practices tasks"
+policy:
+  allow_implicit_invocation: false

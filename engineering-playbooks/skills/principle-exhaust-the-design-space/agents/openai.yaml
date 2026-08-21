@@ -1,0 +1,5 @@
+interface:
+  display_name: "Principle Exhaust The Design Space"
+  short_description: "Help with Principle Exhaust The Design Space tasks"
+policy:
+  allow_implicit_invocation: false

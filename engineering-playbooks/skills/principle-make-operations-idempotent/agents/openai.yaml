@@ -1,0 +1,5 @@
+interface:
+  display_name: "Principle Make Operations Idempotent"
+  short_description: "Help with Principle Make Operations Idempotent tasks"
+policy:
+  allow_implicit_invocation: false

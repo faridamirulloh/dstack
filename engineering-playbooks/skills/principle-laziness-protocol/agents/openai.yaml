@@ -1,0 +1,5 @@
+interface:
+  display_name: "Principle Laziness Protocol"
+  short_description: "Help with Principle Laziness Protocol tasks"
+policy:
+  allow_implicit_invocation: false

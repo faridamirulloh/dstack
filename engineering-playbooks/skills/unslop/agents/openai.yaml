@@ -1,0 +1,5 @@
+interface:
+  display_name: "Unslop"
+  short_description: "Help with Unslop tasks and workflows"
+policy:
+  allow_implicit_invocation: false

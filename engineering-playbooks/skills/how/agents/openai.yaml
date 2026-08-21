@@ -1,0 +1,5 @@
+interface:
+  display_name: "How"
+  short_description: "Help with How tasks and workflows"
+policy:
+  allow_implicit_invocation: false

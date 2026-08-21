@@ -1,0 +1,5 @@
+interface:
+  display_name: "Principle Subtract Before You Add"
+  short_description: "Help with Principle Subtract Before You Add tasks"
+policy:
+  allow_implicit_invocation: false

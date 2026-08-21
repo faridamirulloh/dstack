@@ -1,0 +1,5 @@
+interface:
+  display_name: "Resolving Merge Conflicts"
+  short_description: "Help with Resolving Merge Conflicts tasks"
+policy:
+  allow_implicit_invocation: false

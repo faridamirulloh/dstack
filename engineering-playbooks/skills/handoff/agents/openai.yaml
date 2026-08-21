@@ -1,0 +1,5 @@
+interface:
+  display_name: "Handoff"
+  short_description: "Help with Handoff tasks and workflows"
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Wizard"
+  short_description: "Help with Wizard tasks and workflows"
+policy:
+  allow_implicit_invocation: false

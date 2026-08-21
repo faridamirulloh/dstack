@@ -1,0 +1,19 @@
+{
+  "name": "engineering-playbooks",
+  "version": "0.1.0",
+  "description": "Deduplicated engineering playbooks with an automatic Codex router.",
+  "author": {
+    "name": "Local Developer"
+  },
+  "license": "MIT",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Engineering Playbooks",
+    "shortDescription": "Route engineering work to the right playbook.",
+    "longDescription": "Selects one core engineering workflow and exposes focused architecture, review, research, teaching, writing, modeling, and principle skills.",
+    "developerName": "Local Developer",
+    "category": "Developer Tools",
+    "capabilities": ["skills"],
+    "defaultPrompt": "Use the appropriate engineering playbook for this request."
+  }
+}

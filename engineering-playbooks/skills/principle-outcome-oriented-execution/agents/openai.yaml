@@ -1,0 +1,5 @@
+interface:
+  display_name: "Principle Outcome Oriented Execution"
+  short_description: "Help with Principle Outcome Oriented Execution tasks"
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Principle Minimize Reader Load"
+  short_description: "Help with Principle Minimize Reader Load tasks"
+policy:
+  allow_implicit_invocation: false
