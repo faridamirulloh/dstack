@@ -1,0 +1,4 @@
+interface:
+  display_name: "Godot mobile game development"
+  short_description: "Android/iOS gameplay, touch, and device performance"
+  default_prompt: "Use $godot-mobile-game-dev to implement the requested Godot feature for this project's native mobile targets and permissions."

@@ -55,6 +55,7 @@ namespace UsageLimitsMonitor
     {
         public long At { get; set; }
         public List<Quota> Quotas { get; set; }
+        public long? AvailableResets { get; set; }
         public Snapshot() { Quotas = new List<Quota>(); }
     }
     public sealed class AlertState
@@ -70,6 +71,8 @@ namespace UsageLimitsMonitor
         public string Plan { get; set; }
         public string Identity { get; set; }
         public Snapshot Last { get; set; }
+        public long? ManualSubscriptionAt { get; set; }
+        public string ManualSubscriptionKind { get; set; }
         public Dictionary<string, AlertState> Alerts { get; set; }
         public Account() { Id = Guid.NewGuid().ToString("N"); Label = "Account"; Alerts = new Dictionary<string, AlertState>(); }
         public override string ToString() { return Label; }
@@ -102,7 +105,10 @@ namespace UsageLimitsMonitor
                     throw new InvalidDataException("An account entry is invalid; settings have been preserved.");
                 if (account.Alerts == null) account.Alerts = new Dictionary<string, AlertState>();
                 if (account.Alerts.Values.Any(a => a == null)) throw new InvalidDataException("Saved alert state is invalid; settings have been preserved.");
-                if (account.Last != null && (account.Last.At <= 0 || account.Last.At >= 253402300800 || account.Last.Quotas == null || account.Last.Quotas.Any(q => q == null || string.IsNullOrEmpty(q.Key) || q.Remaining < 0 || q.Remaining > 100 || q.ResetsAt <= 0 || q.ResetsAt >= 253402300800)))
+                if (account.ManualSubscriptionAt.HasValue ? account.ManualSubscriptionAt <= 0 || account.ManualSubscriptionAt >= 253402300800 ||
+                    (account.ManualSubscriptionKind != "Renews" && account.ManualSubscriptionKind != "Ends") : !string.IsNullOrEmpty(account.ManualSubscriptionKind))
+                    throw new InvalidDataException("A saved subscription date is invalid; settings have been preserved.");
+                if (account.Last != null && (account.Last.At <= 0 || account.Last.At >= 253402300800 || account.Last.AvailableResets < 0 || account.Last.Quotas == null || account.Last.Quotas.Any(q => q == null || string.IsNullOrEmpty(q.Key) || q.Remaining < 0 || q.Remaining > 100 || q.ResetsAt <= 0 || q.ResetsAt >= 253402300800)))
                     throw new InvalidDataException("A saved snapshot is invalid; settings have been preserved.");
             }
             return state;
@@ -157,7 +163,7 @@ namespace UsageLimitsMonitor
     {
         public static Snapshot Parse(Dictionary<string, object> response, long now)
         {
-            var snapshot = new Snapshot { At = now };
+            var snapshot = new Snapshot { At = now, AvailableResets = Count(Json.Get(Json.Map(Json.Get(response, "rateLimitResetCredits")), "availableCount")) };
             var buckets = Json.Map(Json.Get(response, "rateLimitsByLimitId"));
             if (buckets.Count == 0)
             {
@@ -216,21 +222,68 @@ namespace UsageLimitsMonitor
             string remaining = time.TotalDays >= 1 ? ((int)time.TotalDays) + "d " + time.Hours + "h" : time.TotalHours >= 1 ? ((int)time.TotalHours) + "h " + time.Minutes + "m" : Math.Max(1, time.Minutes) + "m";
             return remaining + " (" + Json.LocalTime(quota.ResetsAt.Value).ToString("ddd HH:mm") + ")";
         }
+        public static List<Quota> AccountQuotas(Account account)
+        {
+            return account.Last == null ? new List<Quota>() : account.Last.Quotas.OrderBy(q => q.Key, StringComparer.Ordinal).ToList();
+        }
+        private static string BucketKey(Quota quota)
+        {
+            int separator = quota.Key.LastIndexOf('/');
+            return separator < 0 ? quota.Key : quota.Key.Substring(0, separator);
+        }
+        public static string CompactWindow(Quota quota)
+        {
+            return Nonempty(quota.Window, "Not reported").Replace(" day", "d").Replace(" hour", "h").Replace(" min", "m");
+        }
+        public static string QuotaValues(Account account, Func<Quota, string> format, string unavailable)
+        {
+            var quotas = AccountQuotas(account);
+            return quotas.Count == 0 ? unavailable : string.Join(" | ", quotas.Select(format));
+        }
+        public static string WindowLabels(Account account)
+        {
+            bool multipleBuckets = AccountQuotas(account).Select(BucketKey).Distinct(StringComparer.Ordinal).Count() > 1;
+            return QuotaValues(account, q => (multipleBuckets ? q.Bucket + " " : "") + CompactWindow(q), "Not reported");
+        }
+        public static string RemainingText(Quota quota)
+        {
+            return quota.Remaining.HasValue ? quota.Remaining.Value.ToString("0.#", CultureInfo.InvariantCulture) + "%" : "Unavailable";
+        }
+        public static string ResetCountdown(Quota quota, long now)
+        {
+            if (!quota.ResetsAt.HasValue) return "Not reported";
+            var remaining = TimeSpan.FromSeconds(quota.ResetsAt.Value - now);
+            return remaining.TotalSeconds <= 0 ? "Awaiting confirmation" : remaining.TotalDays >= 1 ? ((int)remaining.TotalDays) + "d" :
+                remaining.TotalHours >= 1 ? ((int)remaining.TotalHours) + "h" : Math.Max(1, (int)remaining.TotalMinutes) + "m";
+        }
+        public static string ResetDate(Quota quota)
+        {
+            return quota.ResetsAt.HasValue ? Json.LocalTime(quota.ResetsAt.Value).ToString("d-MMM HH:mm", CultureInfo.InvariantCulture) : "Not reported";
+        }
+        public static string AccountCredits(Account account)
+        {
+            var buckets = AccountQuotas(account).GroupBy(BucketKey).ToList();
+            return buckets.Count == 0 ? "Unavailable" : string.Join(" | ", buckets.Select(g =>
+                (buckets.Count > 1 ? g.First().Bucket + ": " : "") + Nonempty(g.First().Credits, "Unavailable")));
+        }
+        public static string AvailableResetsText(Account account)
+        {
+            return account.Last != null && account.Last.AvailableResets.HasValue ? account.Last.AvailableResets.Value.ToString(CultureInfo.InvariantCulture) : "Unavailable";
+        }
+        public static bool IsFree(Account account) { return string.Equals(account.Plan, "free", StringComparison.OrdinalIgnoreCase); }
+        public static string SubscriptionText(Account account, long now)
+        {
+            if (IsFree(account)) return "Not applicable";
+            if (!account.ManualSubscriptionAt.HasValue) return "Unavailable";
+            return account.ManualSubscriptionKind + " " + Json.LocalTime(account.ManualSubscriptionAt.Value).ToString("d-MMM-yyyy HH:mm", CultureInfo.InvariantCulture) +
+                " (Manual" + (account.ManualSubscriptionAt <= now ? "; past" : "") + ")";
+        }
         public static string AccountTip(Account account, bool fresh, long now)
         {
-            var quota = account.Last == null ? null : account.Last.Quotas
-                .Where(q => q.Remaining.HasValue).OrderBy(q => q.Remaining)
-                .ThenByDescending(q => q.ResetsAt ?? long.MinValue).ThenBy(q => q.Key, StringComparer.Ordinal).FirstOrDefault();
-            if (quota == null) return account.Label + ": Unavailable / Not reported / Not reported";
-            string countdown = "Not reported", date = "Not reported";
-            if (quota.ResetsAt.HasValue)
-            {
-                var remaining = TimeSpan.FromSeconds(quota.ResetsAt.Value - now);
-                countdown = remaining.TotalSeconds <= 0 ? "Awaiting confirmation" : remaining.TotalDays >= 1 ? ((int)remaining.TotalDays) + "d" :
-                    remaining.TotalHours >= 1 ? ((int)remaining.TotalHours) + "h" : Math.Max(1, (int)remaining.TotalMinutes) + "m";
-                date = Json.LocalTime(quota.ResetsAt.Value).ToString("d-MMM HH:mm", CultureInfo.InvariantCulture);
-            }
-            return account.Label + ": " + quota.Remaining.Value.ToString("0.#", CultureInfo.InvariantCulture) + "% / " + countdown + " / " + date + (fresh ? "" : " (stale)");
+            return account.Label + ": " + WindowLabels(account) + " / " + QuotaValues(account, RemainingText, "Unavailable") + " / " +
+                QuotaValues(account, q => ResetCountdown(q, now), "Not reported") + " / " + QuotaValues(account, ResetDate, "Not reported") +
+                " / Resets: " + AvailableResetsText(account) + (fresh || account.Last == null ? "" : " (stale)") +
+                " / Subscription: " + SubscriptionText(account, now);
         }
         public static ServiceUsage ParseHistory(Dictionary<string, object> response)
         {

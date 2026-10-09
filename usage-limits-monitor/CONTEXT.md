@@ -17,7 +17,7 @@ A name chosen for display, such as Personal or Work, used in notification popups
 _Avoid_: Account ID.
 
 **Quota bucket**:
-A separately metered allowance reported by Codex. Buckets must retain their identity rather than being combined into one total.
+A separately metered allowance reported by Codex. The dashboard groups buckets in one account row using ` | `, while keeping their names and independent percentages. Grouping never produces a combined total.
 _Avoid_: Credit balance, account balance.
 
 **Quota window**:
@@ -36,8 +36,16 @@ _Avoid_: Remaining quota, reset credits.
 The time reported for a quota window to reset. Passing that time is not evidence that a refresh has confirmed restored capacity.
 _Avoid_: Guaranteed refill time.
 
+**Available reset count**:
+The provider-reported number of banked usage resets available to an account, from rateLimitResetCredits.availableCount. It is separate from spendable credits and automatic window resets. A missing or invalid count is unknown, not zero; the count is authoritative even when detail rows are absent or capped. The monitor does not redeem resets.
+_Avoid_: Credit balance, future automatic resets.
+
+**Subscription date**:
+An optional date the owner enters manually for the next renewal (Renews) or known end of paid access (Ends). The current documented account interface does not expose this date. It is labelled Manual, stored as a UTC timestamp, and displayed in local time. A past value does not establish a changed plan or advance itself. Free accounts show Not applicable.
+_Avoid_: Token expiry, inferred subscription end.
+
 **Usage snapshot**:
-The last successful usage response for a monitor profile, together with when the app received it. A failed refresh does not make that snapshot current.
+The last successful usage response for a monitor profile, including quota windows and optional available reset count, together with when the app received it. A failed refresh does not make that snapshot current. Manual subscription dates are stored separately from service snapshots.
 _Avoid_: Live usage.
 
 **OpenAI token history**:
@@ -58,4 +66,4 @@ _Avoid_: Limit reset, usage reset credit.
 
 ## Sources
 
-Terminology is grounded in the conversation and the [OpenAI account and rate-limit interface](https://learn.chatgpt.com/docs/app-server#auth-endpoints), reviewed on 2026-08-27. UI behavior and profile storage are this app's choices, not promises made by that interface.
+Terminology is grounded in the conversation and the [OpenAI account and rate-limit interface](https://learn.chatgpt.com/docs/app-server#auth-endpoints), reviewed on 2026-09-30. UI behavior and profile storage are this app's choices, not promises made by that interface.

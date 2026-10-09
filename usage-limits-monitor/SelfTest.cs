@@ -44,29 +44,34 @@ namespace UsageLimitsMonitor
         {
             long now = Json.Now;
             var response = Json.Read(@"{""rateLimits"":{""primary"":{""usedPercent"":1}},""rateLimitsByLimitId"":{""codex"":{""limitName"":""Codex"",""primary"":{""usedPercent"":100,""windowDurationMins"":300,""resetsAt"":2000000000},""secondary"":{""usedPercent"":15,""windowDurationMins"":10080},""credits"":{""hasCredits"":true,""balance"":""42.50""}},""review"":{""primary"":{""usedPercent"":12}}}}");
+            response["rateLimitResetCredits"] = Json.Read(@"{""availableCount"":2,""credits"":[]}");
             var parsed = Usage.Parse(response, now);
-            Check(parsed.Quotas.Count == 3, "All buckets and windows retained; fallback not duplicated");
+            Check(parsed.Quotas.Count == 3 && parsed.AvailableResets == 2, "All buckets/windows retained; reset count is authoritative even when detail rows are empty");
             Check(parsed.Quotas[0].Remaining == 0 && parsed.Quotas[1].Remaining == 85, "Exhausted and available windows stay separate");
             Check(parsed.Quotas[0].Credits == "42.5", "Credits retained after quota exhaustion");
             Check(parsed.Quotas[2].Credits == "Unavailable" && parsed.Quotas[2].ResetsAt == null, "Missing credits and reset stay unknown");
-            Check(Usage.CreditText(Json.Read(@"{""balance"":0}")) == "0", "Explicit zero credit balance remains zero");
+            Check(Usage.CreditText(Json.Read(@"{""balance"":0}")) == "0" && Usage.Parse(Json.Read(@"{""rateLimitResetCredits"":{""availableCount"":0}}"), now).AvailableResets == 0, "Explicit zero balances and available resets remain zero");
             Check(Usage.CreditText(Json.Read(@"{""unlimited"":true}")) == "Unlimited", "Unlimited credits are not a fabricated number");
             Check(Usage.CreditText(Json.Read(@"{""balance"":""NaN""}")) == "Unavailable", "Malformed balance rejected");
             var missing = Usage.Parse(Json.Read(@"{""rateLimits"":{""primary"": {""usedPercent"":null,""resetsAt"":-1},""secondary"":{""usedPercent"":-9}}}"), now);
-            Check(missing.Quotas.All(q => !q.Remaining.HasValue) && missing.Quotas[0].ResetsAt == null, "Missing and negative percentages are unknown");
+            Check(missing.Quotas.All(q => !q.Remaining.HasValue) && missing.Quotas[0].ResetsAt == null && missing.AvailableResets == null &&
+                Usage.Parse(Json.Read(@"{""rateLimitResetCredits"":{""availableCount"":-1}}"), now).AvailableResets == null, "Missing/invalid percentages, timestamps, and reset counts stay unknown");
             Check(Usage.Parse(Json.Read("{}"), now).Quotas.Count == 0, "Absent quotas are not full capacity");
             var creditOnly = Usage.Parse(Json.Read(@"{""rateLimits"":{""credits"":{""balance"":7}}}"), now);
             Check(creditOnly.Quotas.Single().Remaining == null && creditOnly.Quotas.Single().Credits == "7", "Credit-only response keeps its balance without inventing a quota");
             Check(Usage.ResetText(new Quota { ResetsAt = now - 10 }, now) == "Awaiting confirmation", "Elapsed reset does not claim restored capacity");
             long tipReset = (long)(new DateTime(2026, 9, 3, 14, 32, 0, DateTimeKind.Local).ToUniversalTime() - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
             var tipAccount = new Account { Label = "F01", Last = Sample(70, tipReset, now) };
-            tipAccount.Last.Quotas.Add(new Quota { Key = "codex/secondary", Remaining = 90, ResetsAt = tipReset + 86400 });
-            Check(Usage.AccountTip(tipAccount, true, tipReset - 5 * 86400) == "F01: 70% / 5d / 3-Sep 14:32", "Tooltip uses the requested format and one lowest-quota row per account");
-            Check(Usage.AccountTip(tipAccount, false, tipReset - 4 * 3600) == "F01: 70% / 4h / 3-Sep 14:32 (stale)", "Tooltip uses compact hours and labels saved data as stale");
+            tipAccount.Last.AvailableResets = 2;
+            tipAccount.Last.Quotas.Add(new Quota { Key = "codex/secondary", Bucket = "Codex", Window = "7 day", Remaining = 90, ResetsAt = tipReset + 86400 });
+            Check(Usage.AccountTip(tipAccount, true, tipReset - 5 * 86400) == "F01: 5h | 7d / 70% | 90% / 5d | 6d / 3-Sep 14:32 | 4-Sep 14:32 / Resets: 2 / Subscription: Unavailable", "Tooltip groups windows with aligned percentages, countdowns, dates, and account reset count");
+            Check(Usage.AccountTip(tipAccount, false, tipReset - 4 * 3600) == "F01: 5h | 7d / 70% | 90% / 4h | 1d / 3-Sep 14:32 | 4-Sep 14:32 / Resets: 2 (stale) / Subscription: Unavailable", "Tooltip uses compact hours and labels saved quota/reset-count data as stale");
             tipAccount.Last.Quotas[0].Remaining = 0;
-            Check(Usage.AccountTip(tipAccount, true, tipReset + 1).Contains("0% / Awaiting confirmation"), "Tooltip does not invent a refill when the reset passes");
+            Check(Usage.AccountTip(tipAccount, true, tipReset + 1).Contains("0% | 90% / Awaiting confirmation | 23h"), "Tooltip does not invent a refill when one window reset passes");
             tipAccount.Last.Quotas[0].ResetsAt = null;
-            Check(Usage.AccountTip(tipAccount, true, now) == "F01: 0% / Not reported / Not reported" && Usage.AccountTip(new Account { Label = "Empty" }, false, now).StartsWith("Empty: Unavailable"), "Tooltip preserves missing reset and account data");
+            tipAccount.Last.Quotas.RemoveAt(1); tipAccount.Last.AvailableResets = null;
+            Check(Usage.AccountTip(tipAccount, true, now) == "F01: 5h / 0% / Not reported / Not reported / Resets: Unavailable / Subscription: Unavailable" &&
+                Usage.AccountTip(new Account { Label = "Empty", Plan = "free" }, false, now) == "Empty: Not reported / Unavailable / Not reported / Not reported / Resets: Unavailable / Subscription: Not applicable", "Tooltip preserves missing fields and shows no subscription for Free accounts");
             var serviceUsage = Usage.ParseHistory(Json.Read(@"{""summary"":{""lifetimeTokens"":1234567,""peakDailyTokens"":45678},""dailyUsageBuckets"":[{""startDate"":""2026-08-25"",""tokens"":12345},{""startDate"":""2026-08-26"",""tokens"":0}]}"));
             Check(serviceUsage.LifetimeTokens == 1234567 && serviceUsage.Days.Count == 2 && serviceUsage.Days[0].Tokens == 0 && serviceUsage.Days[1].Tokens == 12345, "OpenAI history retains daily token counts, explicit zero, and date ordering");
             Check(Usage.ParseHistory(Json.Read("{}")).Days == null && Usage.ParseHistory(Json.Read(@"{""dailyUsageBuckets"":[]}")).Days.Count == 0, "Unavailable OpenAI history is distinct from an empty returned list");
@@ -104,8 +109,10 @@ namespace UsageLimitsMonitor
             Check(store.Load().StartWithWindows, "First-run startup preference defaults on without touching Windows");
             var legacy = Json.Serializer().Deserialize<Settings>(@"{""Accounts"":[],""StartWithWindows"":false}");
             Check(legacy.DarkTheme && !legacy.StartWithWindows, "Existing settings gain dark mode without re-enabling Windows startup");
-            settings.DarkTheme = false; store.Save(settings);
-            Check(!store.Load().DarkTheme, "The light-theme choice persists across settings reload");
+            settings.DarkTheme = false; settings.Accounts[0].ManualSubscriptionAt = tipReset; settings.Accounts[0].ManualSubscriptionKind = "Ends"; store.Save(settings);
+            var reloaded = store.Load();
+            Check(!reloaded.DarkTheme && reloaded.Accounts[0].ManualSubscriptionAt == tipReset && reloaded.Accounts[0].ManualSubscriptionKind == "Ends" &&
+                Usage.SubscriptionText(reloaded.Accounts[0], tipReset + 1) == "Ends 3-Sep-2026 14:32 (Manual; past)", "Theme and manual subscription date persist; a past date does not claim a verified plan change");
             settings.StartWithWindows = false; store.Save(settings);
             Check(!store.Load().StartWithWindows && File.Exists(Path.Combine(scratch, "settings.json.bak")), "Startup opt-out persists with an atomic settings backup");
             bool invalid = false; try { store.Profile("..\\outside"); } catch (ArgumentException) { invalid = true; }

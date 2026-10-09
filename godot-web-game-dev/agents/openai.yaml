@@ -1,0 +1,4 @@
+interface:
+  display_name: "Godot web game development"
+  short_description: "GDScript gameplay and browser rendering"
+  default_prompt: "Use $godot-web-game-dev to implement the requested Godot feature within this project's browser targets and permissions."

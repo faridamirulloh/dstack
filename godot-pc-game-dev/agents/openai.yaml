@@ -1,0 +1,4 @@
+interface:
+  display_name: "Godot PC game development"
+  short_description: "Native desktop gameplay, controls, and rendering"
+  default_prompt: "Use $godot-pc-game-dev to implement the requested Godot feature for this project's native desktop targets and permissions."

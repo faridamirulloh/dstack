@@ -1,0 +1,4 @@
+interface:
+  display_name: "Blender game assets"
+  short_description: "Editable low-triangle assets and scoped GLB exports"
+  default_prompt: "Use $blender-game-assets to create or refine the requested asset for this project's gameplay camera and engine targets."

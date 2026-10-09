@@ -241,12 +241,6 @@ namespace UsageLimitsMonitor
         public long NextTry;
         public bool Verified;
     }
-    internal sealed class SelectedQuota
-    {
-        public Account Account;
-        public Quota Quota;
-    }
-
     internal sealed class Dashboard : Form
     {
         [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
@@ -281,7 +275,7 @@ namespace UsageLimitsMonitor
             Text = "Usage Limits Monitor" + (smoke ? " - test data" : "");
             Font = new Font("Segoe UI", 9F);
             AutoScaleMode = AutoScaleMode.Dpi;
-            ClientSize = new Size(1080, 460);
+            ClientSize = new Size(1280, 460);
             MinimumSize = new Size(720, 360);
             StartPosition = FormStartPosition.CenterScreen;
             ShowInTaskbar = true;
@@ -292,11 +286,12 @@ namespace UsageLimitsMonitor
             toolbar.Dock = DockStyle.Fill;
             toolbar.WrapContents = true;
             AddButton("&Add account", async delegate { await Enroll(null); });
-            AddButton("&Reconnect", async delegate { var row = Selection(); if (row != null) await Enroll(row.Account); });
+            AddButton("&Reconnect", async delegate { var account = Selection(); if (account != null) await Enroll(account); });
             AddButton("Re&name", Rename);
             AddButton("Re&move", async delegate { await RemoveSelected(); });
             AddButton("Refresh &now", async delegate { await RefreshAll(true); });
             AddButton("&Pin quota", PinSelected);
+            AddButton("Subs&cription", EditSubscription);
             AddButton("&History", ShowHistory);
             AddButton("&Settings", ShowSettings);
             var quit = new Button { Text = "&Quit", AutoSize = true }; quit.Click += delegate { Quit(); }; toolbar.Controls.Add(quit);
@@ -308,11 +303,11 @@ namespace UsageLimitsMonitor
             grid.BackgroundColor = SystemColors.Window; grid.BorderStyle = BorderStyle.FixedSingle;
             grid.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
             grid.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
-            grid.AccessibleName = "Account quotas and credit balances";
-            string[] names = { "Account", "Plan", "Bucket / window", "Remaining", "Resets", "Credits", "Status / last update" };
-            int[] weights = { 100, 55, 110, 65, 135, 80, 155 };
+            grid.AccessibleName = "Accounts, quota windows, available resets, credits, and subscription dates";
+            string[] names = { "Account", "Plan", "Buckets / windows", "Remaining", "Resets in", "Reset date / time", "Credits", "Available resets", "Subscription", "Status / last update" };
+            int[] weights = { 90, 55, 125, 100, 110, 150, 80, 85, 205, 155 };
             for (int i = 0; i < names.Length; i++)
-                grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = names[i], FillWeight = weights[i], SortMode = DataGridViewColumnSortMode.NotSortable });
+                grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = names[i], FillWeight = weights[i], MinimumWidth = weights[i], SortMode = DataGridViewColumnSortMode.NotSortable });
             grid.CellDoubleClick += delegate { PinSelected(); };
             footer.Dock = DockStyle.Fill; footer.TextAlign = ContentAlignment.MiddleLeft;
             footer.AutoEllipsis = true;
@@ -373,7 +368,7 @@ namespace UsageLimitsMonitor
             if (!connections.TryGetValue(account.Id, out state)) { state = new Connection(); connections.Add(account.Id, state); }
             return state;
         }
-        private SelectedQuota Selection() { return grid.CurrentRow == null ? null : grid.CurrentRow.Tag as SelectedQuota; }
+        private Account Selection() { return grid.CurrentRow == null ? null : grid.CurrentRow.Tag as Account; }
         private bool Fresh(Account account) { return account.Last != null && (smoke || State(account).Verified) && State(account).Error == null && Json.Now - account.Last.At <= 150; }
         private void ApplyTheme()
         {
@@ -512,12 +507,12 @@ namespace UsageLimitsMonitor
             HideAccountTip();
             dialogOpen = true;
             string label;
-            try { label = Prompt.Ask(this, "Rename account", "Display label:", selected.Account.Label); }
+            try { label = Prompt.Ask(this, "Rename account", "Display label:", selected.Label); }
             finally { dialogOpen = false; }
             if (label == null) return;
-            string previous = selected.Account.Label; selected.Account.Label = label;
+            string previous = selected.Label; selected.Label = label;
             try { store.Save(settings); }
-            catch (Exception error) { selected.Account.Label = previous; Error(error.Message); }
+            catch (Exception error) { selected.Label = previous; Error(error.Message); }
             RenderRows();
         }
         private async Task RemoveSelected()
@@ -526,12 +521,12 @@ namespace UsageLimitsMonitor
             HideAccountTip();
             dialogOpen = true;
             DialogResult answer;
-            try { answer = MessageBox.Show(this, "Remove " + selected.Account.Label + "?\n\nThis signs out only its monitor profile and deletes its saved settings and quota snapshot. Your other Codex logins are not changed.", "Remove account", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning); }
+            try { answer = MessageBox.Show(this, "Remove " + selected.Label + "?\n\nThis signs out only its monitor profile and deletes its saved settings and quota snapshot. Your other Codex logins are not changed.", "Remove account", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning); }
             finally { dialogOpen = false; }
             if (answer != DialogResult.OK) return;
             await Work(async delegate
             {
-                var account = selected.Account;
+                var account = selected;
                 var client = await Client(account);
                 await client.Request("account/logout", new { });
                 client.Dispose(); State(account).Client = null;
@@ -546,12 +541,40 @@ namespace UsageLimitsMonitor
         }
         private void PinSelected()
         {
-            var selected = Selection(); if (selected == null || selected.Quota == null || busy) return;
+            var selected = Selection(); if (selected == null || busy) return;
+            var quotas = Usage.AccountQuotas(selected); if (quotas.Count == 0) return;
+            HideAccountTip();
+            Quota chosen;
+            dialogOpen = true;
+            try { chosen = quotas.Count == 1 ? quotas[0] : Prompt.PickQuota(this, selected, settings.PinnedAccount == selected.Id ? settings.PinnedQuota : null); }
+            finally { dialogOpen = false; }
+            if (chosen == null) return;
             string account = settings.PinnedAccount, quota = settings.PinnedQuota;
-            settings.PinnedAccount = selected.Account.Id; settings.PinnedQuota = selected.Quota.Key;
+            settings.PinnedAccount = selected.Id; settings.PinnedQuota = chosen.Key;
             try { store.Save(settings); }
             catch (Exception error) { settings.PinnedAccount = account; settings.PinnedQuota = quota; Error(error.Message); }
             RenderRows();
+        }
+        private void EditSubscription()
+        {
+            var selected = Selection(); if (selected == null || busy) return;
+            if (Usage.IsFree(selected)) { Error("Free accounts have no paid subscription date."); return; }
+            HideAccountTip();
+            dialogOpen = true;
+            try
+            {
+                using (var form = new SubscriptionForm(selected))
+                {
+                    if (form.ShowDialog(this) != DialogResult.OK) return;
+                    long? previousDate = selected.ManualSubscriptionAt;
+                    string previousKind = selected.ManualSubscriptionKind;
+                    selected.ManualSubscriptionAt = form.SubscriptionAt; selected.ManualSubscriptionKind = form.SubscriptionKind;
+                    try { store.Save(settings); }
+                    catch { selected.ManualSubscriptionAt = previousDate; selected.ManualSubscriptionKind = previousKind; throw; }
+                }
+            }
+            catch (Exception error) { Error(error.Message); }
+            finally { dialogOpen = false; RenderRows(); }
         }
         private void ShowHistory()
         {
@@ -560,10 +583,10 @@ namespace UsageLimitsMonitor
             dialogOpen = true;
             try
             {
-                using (var form = new HistoryForm(selected.Account, async delegate
+                using (var form = new HistoryForm(selected, async delegate
                 {
-                    var client = await Client(selected.Account);
-                    AcceptIdentity(selected.Account, await client.ReadAccount());
+                    var client = await Client(selected);
+                    AcceptIdentity(selected, await client.ReadAccount());
                     return Usage.ParseHistory(await client.Request("account/usage/read", new { }));
                 })) form.ShowDialog(this);
             }
@@ -599,36 +622,34 @@ namespace UsageLimitsMonitor
         }
         private void RenderRows()
         {
-            var selected = Selection(); string id = selected == null ? null : selected.Account.Id;
-            string key = selected == null || selected.Quota == null ? null : selected.Quota.Key;
+            var selected = Selection(); string id = selected == null ? null : selected.Id;
             int scroll = grid.FirstDisplayedScrollingRowIndex;
             grid.Rows.Clear();
             foreach (var account in settings.Accounts)
             {
-                var quotas = account.Last == null || account.Last.Quotas.Count == 0 ? new List<Quota> { null } : account.Last.Quotas;
-                foreach (var quota in quotas)
-                {
-                    string status = State(account).Error;
-                    if (status != null) status = "Refresh failed; saved data. " + status;
-                    else if (account.Last == null) status = "Not connected. Use Reconnect.";
-                    else status = Fresh(account) ? "Updated " + Json.LocalTime(account.Last.At).ToString("HH:mm:ss") : "Stale: " + Json.LocalTime(account.Last.At).ToString("MMM d HH:mm");
-                    if (account.Last != null && State(account).Error != null) status += " Last update: " + Json.LocalTime(account.Last.At).ToString("MMM d HH:mm");
-                    if (quota != null && !string.IsNullOrWhiteSpace(quota.LimitState)) status += " [" + quota.LimitState + "]";
-                    string remaining = quota == null || !quota.Remaining.HasValue ? "Unavailable" : quota.Remaining.Value.ToString("0.#") + "%";
-                    int index = grid.Rows.Add(account.Label, Usage.Nonempty(account.Plan, "Unknown"), quota == null ? "Not reported" : quota.Bucket + " / " + quota.Window,
-                        remaining, quota == null ? "Not reported" : Usage.ResetText(quota, Json.Now), quota == null ? "Unavailable" : quota.Credits, status);
-                    var row = grid.Rows[index]; row.Tag = new SelectedQuota { Account = account, Quota = quota };
-                    if (!Fresh(account)) row.DefaultCellStyle.ForeColor = Theme.Muted;
-                    else if (quota != null && quota.Remaining <= 5) row.DefaultCellStyle.ForeColor = Theme.Critical;
-                    if (account.Id == id && (quota == null ? key == null : quota.Key == key)) grid.CurrentCell = row.Cells[0];
-                }
+                var quotas = Usage.AccountQuotas(account);
+                string status = State(account).Error;
+                if (status != null) status = "Refresh failed; saved data. " + status;
+                else if (account.Last == null) status = "Not connected. Use Reconnect.";
+                else status = Fresh(account) ? "Updated " + Json.LocalTime(account.Last.At).ToString("HH:mm:ss") : "Stale: " + Json.LocalTime(account.Last.At).ToString("MMM d HH:mm");
+                if (account.Last != null && State(account).Error != null) status += " Last update: " + Json.LocalTime(account.Last.At).ToString("MMM d HH:mm");
+                var reached = quotas.Where(q => !string.IsNullOrWhiteSpace(q.LimitState)).Select(q => q.Bucket + ": " + q.LimitState).Distinct().ToArray();
+                if (reached.Length > 0) status += " [" + string.Join(" | ", reached) + "]";
+                long now = Json.Now;
+                int index = grid.Rows.Add(account.Label, Usage.Nonempty(account.Plan, "Unknown"), Usage.WindowLabels(account),
+                    Usage.QuotaValues(account, Usage.RemainingText, "Unavailable"), Usage.QuotaValues(account, q => Usage.ResetCountdown(q, now), "Not reported"),
+                    Usage.QuotaValues(account, Usage.ResetDate, "Not reported"), Usage.AccountCredits(account), Usage.AvailableResetsText(account), Usage.SubscriptionText(account, now), status);
+                var row = grid.Rows[index]; row.Tag = account;
+                if (!Fresh(account)) row.DefaultCellStyle.ForeColor = Theme.Muted;
+                else if (quotas.Any(q => q.Remaining <= 5)) row.DefaultCellStyle.ForeColor = Theme.Critical;
+                if (account.Id == id) grid.CurrentCell = row.Cells[0];
             }
             if (scroll >= 0 && scroll < grid.RowCount) grid.FirstDisplayedScrollingRowIndex = scroll;
             UpdateIcon();
             if (accountTip.Visible) UpdateAccountTip();
             heading.Text = settings.Accounts.Count == 0 ? "Add your first ChatGPT account" : "Codex usage across " + settings.Accounts.Count + " accounts";
             footer.Text = (notice ?? "Refresh: 60 seconds. History: OpenAI daily tokens. Credits are separate from quota; unavailable does not mean zero.") + "\n" +
-                (settings.Accounts.Count == 0 ? "Requires a native codex.exe. Sign in separately for each account. This does not monitor ordinary ChatGPT message limits." : "Tray number: " + iconText + ". Select a quota and choose Pin quota. Close hides; Quit stops monitoring.");
+                (settings.Accounts.Count == 0 ? "Requires a native codex.exe. Sign in separately for each account. This does not monitor ordinary ChatGPT message limits." : "Tray number: " + iconText + ". Select an account, then Pin quota to choose a window or Subscription to set a manual date. Close hides; Quit stops monitoring.");
         }
         private void UpdateIcon()
         {
@@ -837,7 +858,7 @@ namespace UsageLimitsMonitor
             Close(); bool closeHides = !Visible && !IsDisposed;
             bool noLocalHistory = !Directory.Exists(Path.Combine(store.Root, "history"));
             if (!hoverWorks) File.WriteAllText(Path.Combine(parent, "hover-check.txt"), hoverDetails);
-            SmokePassed = grid.RowCount == 8 && hoverWorks && tooltipTheme && clickWorks && closeHides && zeroWorks && staleWorks && darkWorks && lightWorks && serviceWorks && rangesWork && unavailableWorks && iconsWork && noLocalHistory;
+            SmokePassed = grid.RowCount == settings.Accounts.Count && hoverWorks && tooltipTheme && clickWorks && closeHides && zeroWorks && staleWorks && darkWorks && lightWorks && serviceWorks && rangesWork && unavailableWorks && iconsWork && noLocalHistory;
             File.WriteAllText(Path.Combine(parent, "ui-checks.txt"), "Rows: " + grid.RowCount + "\nHover preserves all full account lines without opening/focusing: " + hoverWorks + "\nTooltip follows selected dark/light theme: " + tooltipTheme + "\nClick opens dashboard and hides tooltip: " + clickWorks + "\nClose hides: " + closeHides + "\nPinned exhausted quota: " + zeroWorks + "\nStale tray value is unknown: " + staleWorks + "\nDark theme: " + darkWorks + "\nLight theme: " + lightWorks + "\nOpenAI chart and exact-value table: " + serviceWorks + "\n7/30/all date ranges: " + rangesWork + "\nUnavailable, empty, and failed history: " + unavailableWorks + "\nTray icons at 16/20/24/32 pixels: " + iconsWork + "\nNo local history created: " + noLocalHistory + "\nStartup registration: skipped\nNetwork and sign-in: skipped\n");
             Quit();
         }
@@ -858,6 +879,62 @@ namespace UsageLimitsMonitor
                 Theme.Apply(form);
                 return form.ShowDialog(owner) == DialogResult.OK ? input.Text.Trim() : null;
             }
+        }
+        public static Quota PickQuota(IWin32Window owner, Account account, string pinnedKey)
+        {
+            var quotas = Usage.AccountQuotas(account);
+            using (var form = new Form { Text = "Pin quota: " + account.Label, ClientSize = new Size(500, 145), AutoScaleMode = AutoScaleMode.Dpi,
+                StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false })
+            {
+                var label = new Label { Text = "Choose the window shown by the tray number:", Location = new Point(12, 12), AutoSize = true };
+                var choice = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(12, 40), Width = 476, AccessibleName = "Quota window to pin" };
+                foreach (var quota in quotas) choice.Items.Add(quota.Bucket + " / " + Usage.CompactWindow(quota) + " / " + Usage.RemainingText(quota));
+                choice.SelectedIndex = Math.Max(0, quotas.FindIndex(q => q.Key == pinnedKey));
+                var okay = new Button { Text = "Pin", Location = new Point(320, 96), DialogResult = DialogResult.OK };
+                var cancel = new Button { Text = "Cancel", Location = new Point(405, 96), DialogResult = DialogResult.Cancel };
+                form.Controls.AddRange(new Control[] { label, choice, okay, cancel }); form.AcceptButton = okay; form.CancelButton = cancel;
+                Theme.Apply(form);
+                return form.ShowDialog(owner) == DialogResult.OK ? quotas[choice.SelectedIndex] : null;
+            }
+        }
+    }
+    internal sealed class SubscriptionForm : Form
+    {
+        public long? SubscriptionAt { get; private set; }
+        public string SubscriptionKind { get; private set; }
+        public SubscriptionForm(Account account)
+        {
+            Text = "Subscription: " + account.Label; ClientSize = new Size(510, 235); AutoScaleMode = AutoScaleMode.Dpi;
+            Font = new Font("Segoe UI", 9F); StartPosition = FormStartPosition.CenterParent;
+            FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; MinimizeBox = false;
+            var help = new Label { Text = "Enter a date from your billing page. It will be labelled Manual.\nCheck the date to save it, or uncheck it to show Unavailable.", Location = new Point(16, 16), Size = new Size(478, 46) };
+            var dateLabel = new Label { Text = "Manual date and time (local):", Location = new Point(16, 76), AutoSize = true };
+            var date = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "d-MMM-yyyy HH:mm", ShowCheckBox = true, ShowUpDown = true,
+                MinDate = new DateTime(1970, 1, 2), MaxDate = new DateTime(9998, 12, 31), Location = new Point(225, 72), Width = 269, AccessibleName = "Manual subscription date and time in local timezone" };
+            DateTime initial = account.ManualSubscriptionAt.HasValue ? Json.LocalTime(account.ManualSubscriptionAt.Value) : DateTime.Today;
+            date.Value = initial < date.MinDate ? date.MinDate : initial > date.MaxDate ? date.MaxDate : initial;
+            date.Checked = account.ManualSubscriptionAt.HasValue;
+            var kindLabel = new Label { Text = "Date means:", Location = new Point(16, 116), AutoSize = true };
+            var kind = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(225, 112), Width = 269, AccessibleName = "Subscription renews or ends" };
+            kind.Items.AddRange(new object[] { "Renews", "Ends" }); kind.SelectedIndex = account.ManualSubscriptionKind == "Ends" ? 1 : 0;
+            kind.Enabled = date.Checked; date.ValueChanged += delegate { kind.Enabled = date.Checked; };
+            var reminder = new Label { Text = "Dates do not advance automatically. A past date stays labelled Manual.", Location = new Point(16, 150), Size = new Size(478, 32) };
+            var save = new Button { Text = "Save", Location = new Point(324, 194), Width = 80 };
+            save.Click += delegate
+            {
+                if (date.Checked)
+                {
+                    var local = new DateTime(date.Value.Year, date.Value.Month, date.Value.Day, date.Value.Hour, date.Value.Minute, 0, DateTimeKind.Unspecified);
+                    if (TimeZoneInfo.Local.IsInvalidTime(local)) { MessageBox.Show(this, "This local time does not exist because the clocks change. Choose another time."); return; }
+                    SubscriptionAt = (long)(TimeZoneInfo.ConvertTimeToUtc(local) - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
+                    SubscriptionKind = kind.Text;
+                }
+                else { SubscriptionAt = null; SubscriptionKind = null; }
+                DialogResult = DialogResult.OK;
+            };
+            var cancel = new Button { Text = "Cancel", Location = new Point(414, 194), Width = 80, DialogResult = DialogResult.Cancel };
+            Controls.AddRange(new Control[] { help, dateLabel, date, kindLabel, kind, reminder, save, cancel }); AcceptButton = save; CancelButton = cancel;
+            Theme.Apply(this);
         }
     }
     internal sealed class SettingsForm : Form
