@@ -36,6 +36,7 @@ internal sealed class MarkdownDocument
             .UseTaskLists().UseFootnotes().UseMathematics().UseAutoLinks().UseSoftlineBreakAsHardlineBreak().DisableHtml();
         builder.InlineParsers.Insert(0, new LatexInlineParser());
         builder.InlineParsers.Insert(0, new VisualizationInlineParser());
+        builder.InlineParsers.Insert(0, new CodeCommentInlineParser());
         return builder.Build();
     }
     private readonly string _workingDirectory;
@@ -44,6 +45,7 @@ internal sealed class MarkdownDocument
     private readonly Dictionary<int, Hyperlink> _footnoteReferences = [];
     private bool _compactLists;
     private bool _allowVisualizations;
+    private bool _allowCodeComments;
 
     private MarkdownDocument(string workingDirectory, IReadOnlyList<ComposerReference> mentions)
     { _workingDirectory = workingDirectory; _mentions = mentions; }
@@ -68,6 +70,7 @@ internal sealed class MarkdownDocument
         }
         _compactLists = role == "You";
         _allowVisualizations = role == "Codex";
+        _allowCodeComments = role == "Codex";
         // Parse the whole reply so later reference definitions and footnotes resolve earlier links.
         // The message model bounds text size; formatting is never discarded after a block/run count.
         AddBlocks(document.Blocks, Markdown.Parse(text, Pipeline));
@@ -106,7 +109,7 @@ internal sealed class MarkdownDocument
                     target.Add(title);
                     break;
                 case Md.ParagraphBlock paragraph:
-                    target.Add(Paragraph(paragraph.Inline));
+                    AddParagraph(target, paragraph.Inline);
                     break;
                 case Md.ThematicBreakBlock:
                     target.Add(new Paragraph { BorderBrush = Brush("LineBrush"), BorderThickness = new Thickness(0, 1, 0, 0), Margin = new Thickness(0, 12, 0, 12) });
@@ -235,12 +238,75 @@ internal sealed class MarkdownDocument
         return paragraph;
     }
 
-    private void AddInlines(InlineCollection target, ContainerInline source)
+    private void AddParagraph(BlockCollection target, ContainerInline? source)
     {
-        for (var node = source.FirstChild; node is not null; node = node.NextSibling)
+        if (!_allowCodeComments || source is null || !source.Any(node => node is CodeCommentInline))
+        { target.Add(Paragraph(source)); return; }
+        var start = source.FirstChild;
+        for (var node = start; node is not null; node = node.NextSibling)
+        {
+            if (node is not CodeCommentInline finding) continue;
+            var end = node;
+            while (start is LineBreakInline && !ReferenceEquals(start, node)) start = start.NextSibling;
+            while (end.PreviousSibling is LineBreakInline && !ReferenceEquals(end, start)) end = end.PreviousSibling;
+            if (start is not null && !ReferenceEquals(start, end))
+            {
+                var paragraph = new Paragraph { Margin = new Thickness(0, 0, 0, 7) };
+                AddInlines(paragraph.Inlines, source, start, end);
+                target.Add(paragraph);
+            }
+            target.Add(ReviewCard(finding));
+            start = node.NextSibling;
+        }
+        while (start is LineBreakInline) start = start.NextSibling;
+        if (start is not null)
+        {
+            var paragraph = new Paragraph { Margin = new Thickness(0, 0, 0, 7) };
+            AddInlines(paragraph.Inlines, source, start);
+            target.Add(paragraph);
+        }
+    }
+
+    private Section ReviewCard(CodeCommentInline finding)
+    {
+        var color = Brush(finding.Priority switch { 0 => "DangerBrush", 1 => "PausedTaskBrush", 2 => "WarningBrush", _ => "MutedBrush" });
+        var card = new Section
+        {
+            Background = Brush("PanelBrush"), BorderBrush = color, BorderThickness = new Thickness(3, 0, 0, 0),
+            Padding = new Thickness(12, 10, 12, 10), Margin = new Thickness(0, 6, 0, 12)
+        };
+        var heading = new Paragraph { FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = Brush("ReplyHeadingBrush"), Margin = new Thickness(0, 0, 0, 7) };
+        heading.Inlines.Add(new Span(new Run(finding.Priority is { } priority ? $" P{priority} " : " Review "))
+        { Background = Brush("RaisedBrush"), Foreground = color, FontSize = 11 });
+        heading.Inlines.Add(new Run("  " + finding.Title));
+        card.Blocks.Add(heading);
+        if (!string.IsNullOrWhiteSpace(finding.File))
+        {
+            var location = new Paragraph { FontSize = 11, Foreground = Brush("MutedBrush"), Margin = new Thickness(0, 0, 0, 8) };
+            var suffix = finding.Start is { } start ? ":" + start.ToString(CultureInfo.InvariantCulture)
+                + (finding.End is { } end && end != start ? "–" + end.ToString(CultureInfo.InvariantCulture) : "") : "";
+            if (FileLinks.TryResolve(finding.File, _workingDirectory, out var path, true))
+            {
+                var link = FileLinks.Link(path, label: FileLinks.Name(path) + suffix);
+                link.ToolTip = path + suffix + "\nClick to open. Right-click for file actions.";
+                location.Inlines.Add(link);
+            }
+            else location.Inlines.Add(new Run(FileLinks.Name(finding.File) + suffix) { ToolTip = finding.File });
+            card.Blocks.Add(location);
+        }
+        AddBlocks(card.Blocks, Markdown.Parse(finding.Body, Pipeline));
+        return card;
+    }
+
+    private void AddInlines(InlineCollection target, ContainerInline source, Markdig.Syntax.Inlines.Inline? start = null, Markdig.Syntax.Inlines.Inline? stopBefore = null)
+    {
+        for (var node = start ?? source.FirstChild; node is not null && !ReferenceEquals(node, stopBefore); node = node.NextSibling)
         {
             switch (node)
             {
+                case CodeCommentInline finding:
+                    target.Add(new Run(finding.Marker));
+                    break;
                 case VisualizationInline visualization:
                     target.Add(_allowVisualizations
                         ? new InlineUIContainer(new VisualizationPreview(visualization.Path, visualization.Title, _workingDirectory)) { BaselineAlignment = BaselineAlignment.Center }
@@ -309,6 +375,7 @@ internal sealed class MarkdownDocument
                 AutolinkInline link => link.Url,
                 MathInline math => math.Content.ToString(),
                 VisualizationInline visualization => visualization.Title,
+                CodeCommentInline finding => finding.Title + "\n" + finding.Body,
                 LineBreakInline => " ",
                 ContainerInline container => PlainText(container),
                 _ => ""
