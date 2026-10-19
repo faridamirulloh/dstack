@@ -1,0 +1,4 @@
+interface:
+  display_name: "Godot game audio"
+  short_description: "Game audio playback, mixing, and platform behavior"
+  default_prompt: "Use $godot-game-audio to implement or review the requested audio behavior for this project's Godot version and target platforms."

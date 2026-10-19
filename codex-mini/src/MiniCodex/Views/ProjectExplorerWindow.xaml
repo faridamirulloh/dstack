@@ -1,0 +1,121 @@
+<Window x:Class="MiniCodex.Views.ProjectExplorerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:MiniCodex.ViewModels"
+        Title="Project explorer" Width="800" Height="680" MinWidth="600" MinHeight="460"
+        Style="{StaticResource {x:Type Window}}" WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid Margin="18">
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+        <DockPanel Margin="0,0,0,12">
+            <Button DockPanel.Dock="Right" Content="Refresh" Click="Refresh" FontSize="11" />
+            <StackPanel><TextBlock Text="Project explorer" FontSize="19" FontWeight="SemiBold" /><TextBlock Text="{Binding ProjectName}" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" /></StackPanel>
+        </DockPanel>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button x:Name="FilesTab" Content="Files &amp; folders" Click="ShowFiles" Margin="0,0,7,0" />
+            <Button x:Name="CapabilitiesTab" Content="Plugins &amp; skills" Click="ShowCapabilities" />
+        </StackPanel>
+        <Grid Grid.Row="2" x:Name="FilesPanel">
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+            <TextBox Text="{Binding FileSearch, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,9" ToolTip="Search names and paths across all project folders" AutomationProperties.Name="Search files and folders" />
+            <TreeView x:Name="FileTree" Grid.Row="1" ItemsSource="{Binding Roots}" SelectedItemChanged="FileSelectionChanged" MouseDoubleClick="FileDoubleClick" AutomationProperties.Name="Files in all project folders">
+                <TreeView.Style><Style TargetType="TreeView" BasedOn="{StaticResource {x:Type TreeView}}"><Style.Triggers><DataTrigger Binding="{Binding IsFileSearching}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></TreeView.Style>
+                <TreeView.Resources>
+                    <HierarchicalDataTemplate DataType="{x:Type vm:ProjectFileNode}" ItemsSource="{Binding Children}">
+                        <DockPanel ToolTip="{Binding Tooltip}">
+                            <Button DockPanel.Dock="Right" Content="Mention" Click="MentionFile" IsEnabled="{Binding DataContext.CanInsert, RelativeSource={RelativeSource AncestorType=Window}}" Visibility="{Binding CanMention, Converter={StaticResource BoolVisibility}}" Style="{StaticResource QuietButton}" FontSize="10" MinHeight="23" Padding="7,2" Margin="7,0,0,0" />
+                            <Button Content="{Binding Name}" Click="LoadMore" Visibility="{Binding CanLoad, Converter={StaticResource BoolVisibility}}" Style="{StaticResource QuietButton}" FontSize="11" />
+                            <StackPanel Visibility="{Binding CanMention, Converter={StaticResource BoolVisibility}}">
+                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="12" />
+                                <TextBlock Text="{Binding Detail}" Foreground="{StaticResource FaintBrush}" FontSize="10" Margin="0,3,0,0" />
+                            </StackPanel>
+                            <DockPanel.ContextMenu>
+                                <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                    <MenuItem Header="Mention" Click="MentionFile" IsEnabled="{Binding CanMention}" />
+                                    <MenuItem Header="Open" Click="OpenFile" IsEnabled="{Binding CanMention}" />
+                                    <MenuItem Header="Show in Explorer" Click="RevealFile" IsEnabled="{Binding CanMention}" />
+                                </ContextMenu>
+                            </DockPanel.ContextMenu>
+                        </DockPanel>
+                    </HierarchicalDataTemplate>
+                </TreeView.Resources>
+            </TreeView>
+            <ListBox Grid.Row="1" ItemsSource="{Binding FileResults}" SelectionChanged="SearchFileSelected" MouseDoubleClick="SearchFileDoubleClick" Visibility="{Binding IsFileSearching, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="File search results">
+                <ListBox.ItemTemplate><DataTemplate>
+                    <DockPanel ToolTip="{Binding Tooltip}">
+                        <Button Content="Mention" Click="MentionFile" DockPanel.Dock="Right" Style="{StaticResource QuietButton}" MinHeight="23" FontSize="10" IsEnabled="{Binding DataContext.CanInsert, RelativeSource={RelativeSource AncestorType=Window}}" />
+                        <StackPanel><TextBlock Text="{Binding Name}" FontSize="12" /><TextBlock Text="{Binding Detail}" FontSize="10" Foreground="{StaticResource FaintBrush}" TextTrimming="CharacterEllipsis" /></StackPanel>
+                        <DockPanel.ContextMenu><ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"><MenuItem Header="Mention" Click="MentionFile" /><MenuItem Header="Open" Click="OpenFile" /><MenuItem Header="Show in Explorer" Click="RevealFile" /></ContextMenu></DockPanel.ContextMenu>
+                    </DockPanel>
+                </DataTemplate></ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+        <Grid Grid.Row="2" x:Name="CapabilitiesPanel" Visibility="Collapsed">
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+            <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Margin="0,0,10,0">
+                    <Button x:Name="InstalledTab" Content="Installed" Click="ShowInstalled" Margin="0,0,7,0" />
+                    <Button x:Name="BrowseTab" Content="Browse &amp; install" Click="ShowBrowse" />
+                </StackPanel>
+                <DockPanel Grid.Column="1">
+                    <ComboBox x:Name="CatalogFilter" DockPanel.Dock="Right" Width="100" Margin="8,0,0,0" Visibility="Collapsed" SelectedValuePath="Content" SelectedValue="{Binding Catalog.Filter, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Extension type">
+                        <ComboBoxItem Content="All" /><ComboBoxItem Content="Plugins" /><ComboBoxItem Content="Skills" />
+                    </ComboBox>
+                    <TextBox Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" ToolTip="Filter names, descriptions, and sources" AutomationProperties.Name="Search skills and plugins" />
+                </DockPanel>
+                <TextBlock Grid.Column="2" Text="{Binding Catalog.AccountName}" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="12,0,0,0" TextTrimming="CharacterEllipsis" MaxWidth="120" />
+            </Grid>
+            <TreeView x:Name="CapabilityTree" Grid.Row="1" ItemsSource="{Binding CapabilityGroups}" SelectedItemChanged="CapabilitySelectionChanged" MouseDoubleClick="CapabilityDoubleClick" AutomationProperties.Name="Account plugins and skills">
+                <TreeView.Resources>
+                    <HierarchicalDataTemplate DataType="{x:Type vm:CapabilityNode}" ItemsSource="{Binding Children}">
+                        <DockPanel ToolTip="{Binding Tooltip}">
+                            <Button DockPanel.Dock="Right" Content="Mention" Click="MentionCapability" IsEnabled="{Binding DataContext.CanInsert, RelativeSource={RelativeSource AncestorType=Window}}" Visibility="{Binding CanMention, Converter={StaticResource BoolVisibility}}" Style="{StaticResource QuietButton}" FontSize="10" MinHeight="23" Padding="7,2" Margin="7,0,0,0" />
+                            <StackPanel>
+                                <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding Detail}" Foreground="{StaticResource FaintBrush}" FontSize="10" TextTrimming="CharacterEllipsis" MaxHeight="32" TextWrapping="Wrap" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </DockPanel>
+                    </HierarchicalDataTemplate>
+                </TreeView.Resources>
+            </TreeView>
+            <Grid Grid.Row="1" x:Name="BrowsePanel" Visibility="Collapsed">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <DockPanel Margin="0,0,0,8">
+                    <ProgressBar DockPanel.Dock="Right" Width="70" Height="3" VerticalAlignment="Center" IsIndeterminate="True" Visibility="{Binding Catalog.Working, Converter={StaticResource BoolVisibility}}" />
+                    <TextBlock Text="{Binding Catalog.Activity}" FontSize="11" Foreground="{StaticResource MutedBrush}" />
+                </DockPanel>
+                <ListBox x:Name="CatalogList" Grid.Row="1" ItemsSource="{Binding Catalog.Packages}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" AutomationProperties.Name="Installable plugins and skills">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0,0,0,7" /></Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate><DataTemplate>
+                        <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="6" Padding="12" ToolTip="{Binding Tooltip}">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="{Binding InstallLabel}" Click="InstallExtension" VerticalAlignment="Top" Margin="12,0,0,0" Padding="12,5" MinWidth="80" AutomationProperties.Name="{Binding InstallLabel}">
+                                    <Button.Style><Style TargetType="Button" BasedOn="{StaticResource AccentButton}">
+                                        <Setter Property="IsEnabled" Value="False" />
+                                        <Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding CanInstall}" Value="True" />
+                                            <Condition Binding="{Binding DataContext.Catalog.CanInstall, RelativeSource={RelativeSource AncestorType=Window}}" Value="True" />
+                                        </MultiDataTrigger.Conditions><Setter Property="IsEnabled" Value="True" /></MultiDataTrigger></Style.Triggers>
+                                    </Style></Button.Style>
+                                </Button>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Detail}" Foreground="{StaticResource AccentBrush}" FontSize="10" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Description}" FontSize="11" TextWrapping="Wrap" MaxHeight="75" Margin="0,7,0,0" />
+                                    <TextBlock Text="{Binding Compatibility}" Foreground="{StaticResource MutedBrush}" FontSize="10" TextWrapping="Wrap" Margin="0,7,0,0" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+                    </DataTemplate></ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Grid>
+        <TextBlock Grid.Row="3" x:Name="ExplorerNotice" TextWrapping="Wrap" MaxHeight="76" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,10,0,12" />
+        <DockPanel Grid.Row="4">
+            <Button x:Name="MentionSelected" DockPanel.Dock="Right" Content="Mention selected" Click="InsertSelected" Style="{StaticResource AccentButton}" IsEnabled="False" />
+            <TextBlock x:Name="FooterText" Text="Mentions are inserted into the current chat's draft." FontSize="11" Foreground="{StaticResource FaintBrush}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
+        </DockPanel>
+    </Grid>
+</Window>

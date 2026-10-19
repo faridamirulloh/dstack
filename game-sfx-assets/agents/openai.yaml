@@ -1,0 +1,4 @@
+interface:
+  display_name: "Game sound-effect assets"
+  short_description: "Create, compare, and prepare game sound effects"
+  default_prompt: "Use $game-sfx-assets to prepare the requested game sound effects within the project's sound direction, tools, and permissions."

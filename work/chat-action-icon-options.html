@@ -1,0 +1,120 @@
+<div id="mini-codex-icon-options">
+  <section aria-labelledby="mini-review-title">
+    <h3 id="mini-review-title">Code review</h3>
+    <div class="viz-grid" role="group" aria-label="Code review icon choices">
+      <button type="button" class="btn" data-group="review" data-choice="inspect" aria-pressed="false">
+        <i data-lucide="file-search" aria-hidden="true"></i>
+        Inspect file
+      </button>
+      <button type="button" class="btn" data-group="review" data-choice="compare" aria-pressed="false">
+        <i data-lucide="git-pull-request" aria-hidden="true"></i>
+        Compare changes
+      </button>
+      <button type="button" class="btn" data-group="review" data-choice="checklist" aria-pressed="false">
+        <i data-lucide="clipboard-check" aria-hidden="true"></i>
+        Review checklist
+      </button>
+    </div>
+  </section>
+  <section aria-labelledby="mini-order-title">
+    <h3 id="mini-order-title">Session order</h3>
+    <div class="viz-grid" role="group" aria-label="Session order icon choices">
+      <button type="button" class="btn" data-group="order" data-choice="newest" aria-pressed="false">
+        <i data-lucide="arrow-down-wide-narrow" aria-hidden="true"></i>
+        Newest first
+      </button>
+      <button type="button" class="btn" data-group="order" data-choice="ordered" aria-pressed="false">
+        <i data-lucide="list-ordered" aria-hidden="true"></i>
+        Ordered list
+      </button>
+      <button type="button" class="btn" data-group="order" data-choice="recent" aria-pressed="false">
+        <i data-lucide="list-restart" aria-hidden="true"></i>
+        Restore recent order
+      </button>
+    </div>
+  </section>
+  <div class="viz-row">
+    <button id="mini-use-icons" type="button" class="btn btn-primary" disabled>Use selected icons</button>
+    <span id="mini-icon-selection" class="text-small" aria-live="polite"></span>
+  </div>
+</div>
+<style>
+  #mini-codex-icon-options { display: grid; gap: 24px; padding-top: 12px; }
+  #mini-codex-icon-options section { display: grid; gap: 12px; }
+  #mini-codex-icon-options h3 { margin: 0; }
+</style>
+<script>
+(() => {
+  const root = document.getElementById('mini-codex-icon-options');
+  const options = {
+    review: {
+      inspect: { name: 'Inspect file', icon: 'file-search' },
+      compare: { name: 'Compare changes', icon: 'git-pull-request' },
+      checklist: { name: 'Review checklist', icon: 'clipboard-check' }
+    },
+    order: {
+      newest: { name: 'Newest first', icon: 'arrow-down-wide-narrow' },
+      ordered: { name: 'Ordered list', icon: 'list-ordered' },
+      recent: { name: 'Restore recent order', icon: 'list-restart' }
+    }
+  };
+  const state = { review: null, order: null };
+  const apply = root.querySelector('#mini-use-icons');
+  const summary = root.querySelector('#mini-icon-selection');
+  const choices = [...root.querySelectorAll('[data-choice]')];
+
+  function render() {
+    choices.forEach(button => {
+      button.setAttribute('aria-pressed', String(state[button.dataset.group] === button.dataset.choice));
+    });
+    apply.disabled = !(state.review && state.order);
+    summary.textContent = [
+      state.review ? options.review[state.review].name : '',
+      state.order ? options.order[state.order].name : ''
+    ].filter(Boolean).join(' · ');
+  }
+
+  function restore(saved) {
+    const values = saved && saved.modelContent;
+    for (const group of ['review', 'order']) {
+      state[group] = values && Object.hasOwn(options[group], values[group]) ? values[group] : null;
+    }
+    render();
+  }
+
+  restore(window.openai && window.openai.widgetState);
+  window.addEventListener('openai:set_globals', event => {
+    const globals = event.detail && event.detail.globals;
+    if (globals && Object.hasOwn(globals, 'widgetState')) restore(globals.widgetState);
+  });
+
+  choices.forEach(button => button.addEventListener('click', () => {
+    state[button.dataset.group] = button.dataset.choice;
+    render();
+    if (window.openai && window.openai.setWidgetState) {
+      window.openai.setWidgetState({ modelContent: { review: state.review, order: state.order }, privateContent: null }).catch(() => {});
+    }
+  }));
+
+  apply.addEventListener('click', async () => {
+    if (!state.review || !state.order) return;
+    const review = options.review[state.review];
+    const order = options.order[state.order];
+    if (!window.openai || !window.openai.sendFollowUpMessage) {
+      summary.textContent = `Code review: ${review.name}. Session order: ${order.name}.`;
+      return;
+    }
+    apply.disabled = true;
+    try {
+      await window.openai.sendFollowUpMessage({
+        prompt: `Apply these icon choices in codex-mini: code review = ${review.name} (Lucide ${review.icon}); session order = ${order.name} (Lucide ${order.icon}). Use matching native vector paths at the existing icon sizes. Keep the current actions. Do not run git, builds, or tests.`,
+        title: 'Use selected icons'
+      });
+    } catch {
+      summary.textContent = `Reply with code review: ${review.name}; session order: ${order.name}.`;
+    } finally {
+      apply.disabled = false;
+    }
+  });
+})();
+</script>

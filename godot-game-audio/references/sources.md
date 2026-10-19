@@ -1,0 +1,13 @@
+# Sources and adaptation
+
+<!-- Modified adaptation, 10 October 2026: this package rewrites and extends the reviewed audio-design guidance for Godot targets. -->
+
+Prepared on 10 October 2026 from [audio-design](https://github.com/gamedev-skills/awesome-gamedev-agent-skills/tree/main/skills/disciplines/audio-design), including `SKILL.md` and `references/adaptive-music.md`. The upstream Apache-2.0 [LICENSE](../LICENSE) and [NOTICE](../NOTICE) are preserved. Adapted instruction files carry modification notices; no executable upstream examples are copied into the package.
+
+Retained topics include category mixing, gain, ducking, effect variation, optional music layering/sequencing, and timing. Corrections cover missing bus/asset checks, exact mute, preservation of player volume, bounded voices, explicit loop/interruption cleanup, cancellation of overlapping fades, and active-request ownership for ducking. Music guidance removes the unsupported guarantee that sequential player starts are sample-aligned, uses supported synchronized/interactive streams where appropriate, and makes intensity smoothing depend on elapsed time. Platform guidance adds web Sample/Stream limits and native interruption behavior without requiring a new manager, middleware, renderer, or export mode.
+
+Godot 4.6 documentation was the versioned reference used for the review: [AudioServer](https://docs.godotengine.org/en/4.6/classes/class_audioserver.html), [AudioStreamPlayer](https://docs.godotengine.org/en/4.6/classes/class_audiostreamplayer.html), [randomizer](https://docs.godotengine.org/en/4.6/classes/class_audiostreamrandomizer.html), [synchronized streams](https://docs.godotengine.org/en/4.6/classes/class_audiostreamsynchronized.html), [interactive streams](https://docs.godotengine.org/en/4.6/classes/class_audiostreaminteractive.html), [audio import](https://docs.godotengine.org/en/4.6/tutorials/assets_pipeline/importing_audio_samples.html), and [web export](https://docs.godotengine.org/en/4.6/tutorials/export/exporting_for_web.html).
+
+The synchronization tutorial and parts of the manual may carry outdated-content notices. Verify unfamiliar symbols, stream support, timing, platform notifications, and import/export settings against the actual project release and backend. URLs tracking upstream `main` can change; their contents are not runtime evidence.
+
+This is an instruction-only package. Creation included file inspection and documentation review, not parsing/executing snippets, editor startup, imports, generation, listening, browser/device checks, builds, exports, or profiling. It does not claim runtime validation.

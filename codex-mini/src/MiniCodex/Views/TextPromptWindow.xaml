@@ -1,0 +1,15 @@
+<Window x:Class="MiniCodex.Views.TextPromptWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="420" SizeToContent="Height" ResizeMode="NoResize" Style="{StaticResource {x:Type Window}}" WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <StackPanel Margin="24">
+        <TextBlock x:Name="Heading" FontSize="20" FontWeight="Medium" />
+        <TextBlock x:Name="FieldLabel" Margin="0,18,0,6" />
+        <TextBox x:Name="Input" MaxLength="120" AutomationProperties.Name="Name" />
+        <TextBlock x:Name="Error" Foreground="{StaticResource WarningBrush}" Margin="0,8,0,0" TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+            <Button Content="Cancel" IsCancel="True" Margin="0,0,8,0" />
+            <Button Content="Save" IsDefault="True" Click="Save" Style="{StaticResource AccentButton}" MinWidth="75" />
+        </StackPanel>
+    </StackPanel>
+</Window>

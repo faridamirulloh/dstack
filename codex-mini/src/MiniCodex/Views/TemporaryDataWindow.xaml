@@ -1,0 +1,36 @@
+<Window x:Class="MiniCodex.Views.TemporaryDataWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="Clear temporary data · Mini Codex" Width="580" MinWidth="460" SizeToContent="Height" MaxHeight="720"
+        ResizeMode="NoResize" Style="{StaticResource {x:Type Window}}" WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid Margin="24">
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+        <StackPanel Margin="0,0,0,16">
+            <TextBlock Text="Clear temporary data" FontSize="22" FontWeight="SemiBold" />
+            <TextBlock x:Name="Scope" Foreground="{StaticResource AccentBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0" />
+            <TextBlock Text="Chats, drafts, queues, attachments, generated images, settings, and sign-in data are kept." FontSize="12" TextWrapping="Wrap" Margin="0,10,0,0" />
+        </StackPanel>
+        <Border Grid.Row="1" Style="{StaticResource ChatComposerSurface}" Padding="14">
+            <StackPanel>
+                <TextBlock x:Name="FileSummary" Text="Scanning temporary files…" TextWrapping="Wrap" FontSize="13" LineHeight="22" />
+                <TextBlock Text="Files updated in the last 24 hours and files in use are kept. Only logs in this account's Codex folder are included." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" FontSize="11" Margin="0,10,0,0" />
+            </StackPanel>
+        </Border>
+        <StackPanel Grid.Row="2" Margin="0,14,0,0">
+            <CheckBox x:Name="BrowserCache" Content="Browser disk cache" IsEnabled="False" Checked="SelectionChanged" Unchecked="SelectionChanged" />
+            <TextBlock x:Name="BrowserHint" Foreground="{StaticResource MutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="22,5,0,0" />
+        </StackPanel>
+        <ScrollViewer Grid.Row="3" MaxHeight="160" VerticalScrollBarVisibility="Auto" Margin="0,14,0,0">
+            <StackPanel>
+                <TextBlock x:Name="ActivityHint" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource WarningBrush}" />
+                <TextBlock x:Name="Status" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource MutedBrush}" />
+            </StackPanel>
+        </ScrollViewer>
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button x:Name="CloseButton" Content="Cancel" IsCancel="True" Margin="0,0,8,0" />
+            <Button x:Name="ClearButton" Content="Clear temporary data" Click="Clear" IsEnabled="False" Style="{StaticResource AccentButton}" />
+        </StackPanel>
+        <wv2:WebView2 x:Name="CacheBrowser" Width="1" Height="1" Visibility="Hidden" IsHitTestVisible="False" Focusable="False" HorizontalAlignment="Left" VerticalAlignment="Top" />
+    </Grid>
+</Window>

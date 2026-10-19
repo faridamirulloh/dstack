@@ -1,0 +1,576 @@
+<UserControl x:Class="MiniCodex.Views.AccountPane"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:MiniCodex.ViewModels"
+        xmlns:views="clr-namespace:MiniCodex.Views"
+        xmlns:presentation="clr-namespace:MiniCodex.Presentation"
+        Background="{StaticResource CanvasBrush}" Foreground="{StaticResource TextBrush}">
+    <UserControl.Resources>
+        <presentation:FindCardBrushConverter x:Key="FindCardBrush" />
+        <Style x:Key="SessionSpinner" TargetType="Path">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="14" />
+            <Setter Property="Data" Value="M 7,1 A 6,6 0 1 1 1,7" />
+            <Setter Property="Stroke" Value="#75CD91" />
+            <Setter Property="StrokeThickness" Value="1.7" />
+            <Setter Property="StrokeStartLineCap" Value="Round" />
+            <Setter Property="StrokeEndLineCap" Value="Round" />
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+            <Setter Property="RenderTransform"><Setter.Value><RotateTransform /></Setter.Value></Setter>
+            <Style.Triggers>
+                <Trigger Property="IsVisible" Value="True">
+                    <Trigger.EnterActions><BeginStoryboard x:Name="Spin"><Storyboard><DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)" From="0" To="360" Duration="0:0:0.9" RepeatBehavior="Forever" /></Storyboard></BeginStoryboard></Trigger.EnterActions>
+                    <Trigger.ExitActions><StopStoryboard BeginStoryboardName="Spin" /></Trigger.ExitActions>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="SpeedToggle" TargetType="ToggleButton">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Background" Value="{StaticResource PanelBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template"><Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Surface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="5">
+                        <Viewbox Width="14" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path x:Name="Bolt" Data="M 10,1 L 2,11 L 8,11 L 6,21 L 16,8 L 10,8 Z" Fill="Transparent" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5" StrokeLineJoin="Round" />
+                        </Viewbox>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter Property="Background" Value="{StaticResource AccentInkBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="Bolt" Property="Fill" Value="{StaticResource AccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.8" /></Trigger>
+                        <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.6" /></Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Surface" Property="BorderBrush" Value="{StaticResource AccentBrush}" /></Trigger>
+                        <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Surface" Property="Opacity" Value="0.4" /></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value></Setter>
+        </Style>
+        <DataTemplate x:Key="QuoteCard">
+            <Border Background="{StaticResource RaisedBrush}" BorderBrush="{StaticResource AccentBrush}" BorderThickness="2,0,0,0" CornerRadius="3" Padding="9,6" Margin="0,0,0,6" ToolTipService.ShowDuration="60000">
+                <Border.ToolTip><ScrollViewer MaxWidth="540" MaxHeight="400" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><TextBlock Text="{Binding Quote}" TextWrapping="Wrap" /></ScrollViewer></Border.ToolTip>
+                <StackPanel><TextBlock Text="Quoted from Codex" FontSize="10" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,3" /><TextBlock Text="{Binding Preview}" TextTrimming="CharacterEllipsis" FontSize="12" Foreground="{StaticResource MutedBrush}" /></StackPanel>
+            </Border>
+        </DataTemplate>
+        <DataTemplate x:Key="SentAnnotationCard">
+            <Border Tag="FindAnnotation" Background="{StaticResource SidebarBrush}" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,9">
+                <Border.BorderBrush><MultiBinding Converter="{StaticResource FindCardBrush}"><Binding /><Binding Path="DataContext.FindQuery" RelativeSource="{RelativeSource AncestorType=views:AccountPane}" /></MultiBinding></Border.BorderBrush>
+                <StackPanel>
+                    <ContentControl Content="{Binding}" ContentTemplate="{StaticResource QuoteCard}" />
+                    <presentation:MarkdownMessageView Text="{Binding Comment}" FindText="{Binding DataContext.FindQuery, RelativeSource={RelativeSource AncestorType=views:AccountPane}}" Role="You" Visibility="{Binding HasComment, Converter={StaticResource BoolVisibility}}" Mentions="{Binding DataContext.MentionEntries, RelativeSource={RelativeSource AncestorType=views:AccountPane}}" BaseDirectory="{Binding DataContext.PrimaryFolder, RelativeSource={RelativeSource AncestorType=views:AccountPane}}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+        <DataTemplate x:Key="QuestionCard">
+            <Border Tag="FindQuestion" Background="{StaticResource PanelBrush}" BorderThickness="1" CornerRadius="7" Padding="14" Margin="0,0,0,9">
+                <Border.BorderBrush><MultiBinding Converter="{StaticResource FindCardBrush}"><Binding /><Binding Path="DataContext.FindQuery" RelativeSource="{RelativeSource AncestorType=views:AccountPane}" /></MultiBinding></Border.BorderBrush>
+                <StackPanel>
+                    <TextBlock Text="{Binding Header}" FontSize="11" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,6" />
+                    <TextBlock Text="{Binding Question}" FontWeight="SemiBold" TextWrapping="Wrap" FontSize="14" Margin="0,0,0,9" />
+                    <ItemsControl ItemsSource="{Binding Options}">
+                        <ItemsControl.Style><Style TargetType="ItemsControl"><Setter Property="IsEnabled" Value="{Binding DataContext.Runtime.Connected, RelativeSource={RelativeSource AncestorType=views:AccountPane}}" /><Style.Triggers><DataTrigger Binding="{Binding HasAnswer}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger><DataTrigger Binding="{Binding DataContext.Message.CanAnswer, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="False"><Setter Property="IsEnabled" Value="False" /></DataTrigger></Style.Triggers></Style></ItemsControl.Style>
+                        <ItemsControl.ItemTemplate><DataTemplate>
+                            <ToggleButton Style="{StaticResource QuestionChoiceButton}" IsChecked="{Binding IsSelected, Mode=TwoWay}" Click="SelectQuestionOption" AutomationProperties.Name="{Binding Label}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Label}" TextWrapping="Wrap" FontSize="12" />
+                                    <TextBlock Text="{Binding Description}" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding Description}" Value=""><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+                                </StackPanel>
+                            </ToggleButton>
+                        </DataTemplate></ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <StackPanel Margin="0,10,0,0">
+                        <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="IsEnabled" Value="{Binding DataContext.Runtime.Connected, RelativeSource={RelativeSource AncestorType=views:AccountPane}}" /><Style.Triggers><DataTrigger Binding="{Binding HasAnswer}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger><DataTrigger Binding="{Binding DataContext.Message.CanAnswer, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="False"><Setter Property="IsEnabled" Value="False" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+                        <TextBlock Text="Your own answer" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,6" />
+                        <Border Style="{StaticResource ChatComposerSurface}" Padding="8">
+                            <TextBox Text="{Binding CustomAnswer, UpdateSourceTrigger=PropertyChanged}" PreviewKeyDown="CustomQuestionKeyDown" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="52" MaxHeight="160" MaxLength="16000" VerticalScrollBarVisibility="Auto" Background="Transparent" BorderThickness="0" Padding="3" AutomationProperties.Name="Custom answer" ToolTip="Enter sends your answer. Shift+Enter adds a new line." />
+                        </Border>
+                        <Button Content="Send answer" Click="SendCustomQuestionAnswer" Style="{StaticResource AccentButton}" FontSize="11" HorizontalAlignment="Right" Margin="0,7,0,0" />
+                    </StackPanel>
+                    <Border Background="{StaticResource UserMessageBrush}" CornerRadius="5" Padding="11,9" Margin="0,7,0,0" Visibility="{Binding HasAnswer, Converter={StaticResource BoolVisibility}}">
+                        <StackPanel><TextBlock Text="Your reply" Foreground="{StaticResource AccentBrush}" FontSize="10" Margin="0,0,0,4" /><TextBlock Text="{Binding Answer}" TextWrapping="Wrap" /></StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+        <DataTemplate x:Key="AttachmentCard">
+            <Button Initialized="InitializeAttachmentDrag" Click="OpenAttachment" Style="{StaticResource QuietButton}" Padding="7" Margin="0,0,6,6" HorizontalContentAlignment="Left" ToolTip="{Binding Path}">
+                <StackPanel MaxWidth="190">
+                    <Image Source="{Binding Thumbnail}" Height="90" MaxWidth="180" Stretch="Uniform" Margin="0,0,0,6" Visibility="{Binding IsImage, Converter={StaticResource BoolVisibility}}" ToolTip="Click to open. Drag to copy the original image file." />
+                    <TextBlock Text="{Binding Name}" FontSize="12" TextTrimming="CharacterEllipsis" Foreground="{StaticResource FileLinkBrush}" />
+                    <TextBlock Text="{Binding Detail}" FontSize="10" Foreground="{StaticResource FaintBrush}" Margin="0,3,0,0" />
+                </StackPanel>
+            </Button>
+        </DataTemplate>
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="28" /></Grid.RowDefinitions>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="242" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+        <Border Background="{StaticResource SidebarBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,1,0">
+            <Grid Margin="11,12,11,8">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                <DockPanel>
+                    <StackPanel x:Name="SplitActions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Visibility="Collapsed">
+                        <Button Content="↗" Click="DetachPane" Style="{StaticResource QuietButton}" Width="24" Padding="0" ToolTip="Move account to a new window" AutomationProperties.Name="Move account to a new window" />
+                        <Button Content="×" Click="ClosePane" Style="{StaticResource QuietButton}" Width="24" Padding="0" ToolTip="Close account pane" AutomationProperties.Name="Close account pane" />
+                    </StackPanel>
+                    <Button Style="{StaticResource QuietButton}" Padding="7" HorizontalContentAlignment="Stretch" Click="OpenAccounts" ToolTip="Open account overview" AutomationProperties.Name="Open account manager">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="38" /><ColumnDefinition Width="*" /><ColumnDefinition Width="18" /></Grid.ColumnDefinitions>
+                            <Border Background="#323844" CornerRadius="6" Width="29" Height="29" HorizontalAlignment="Left" VerticalAlignment="Center"><TextBlock Text="{Binding Initials}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource AccentBrush}" FontSize="11" /></Border>
+                            <StackPanel Grid.Column="1"><TextBlock Text="{Binding ProfileName}" FontWeight="Medium" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding Runtime.Identity}" FontSize="11" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis" Margin="0,3,0,0" /></StackPanel>
+                            <TextBlock Grid.Column="2" Text="⌄" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" />
+                        </Grid>
+                    </Button>
+                </DockPanel>
+                <StackPanel Grid.Row="1" Margin="4,8,0,4">
+                    <WrapPanel>
+                        <TextBlock Text="{Binding Runtime.Usage}" ToolTip="{Binding Runtime.UsageTooltip}" Foreground="{StaticResource MutedBrush}" FontSize="12" VerticalAlignment="Center" />
+                        <StackPanel Orientation="Horizontal" Visibility="{Binding Runtime.HasResetCount, Converter={StaticResource BoolVisibility}}">
+                            <TextBlock Text="|" Foreground="{StaticResource FaintBrush}" FontSize="12" Margin="5,0,2,0" VerticalAlignment="Center" />
+                            <Button Content="{Binding Runtime.ResetLabel}" Click="OpenUsageResets" Style="{StaticResource ResetUsageButton}" />
+                        </StackPanel>
+                    </WrapPanel>
+                    <TextBlock Text="{Binding Runtime.Credits}" ToolTip="{Binding Runtime.UsageTooltip}" Foreground="{StaticResource FaintBrush}" FontSize="11" Margin="0,4,0,0" />
+                    <WrapPanel x:Name="AuthPanel">
+                        <WrapPanel.Style><Style TargetType="WrapPanel"><Style.Triggers><DataTrigger Binding="{Binding Runtime.SignedIn}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></WrapPanel.Style>
+                        <Button Content="Sign in" Click="SignIn" FontSize="11" Padding="8,3" MinHeight="27" Margin="0,0,4,4" />
+                        <Button Content="Device code" Click="DeviceSignIn" FontSize="11" Padding="8,3" MinHeight="27" Margin="0,0,0,4" ToolTip="Use this if browser callback sign-in cannot complete" />
+                        <Button Content="Cancel sign-in" Click="CancelSignIn" FontSize="11" Padding="8,3" MinHeight="27" Visibility="{Binding Runtime.LoginPending, Converter={StaticResource BoolVisibility}}" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding Runtime.LoginHint}" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource AccentBrush}"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding Runtime.LoginHint}" Value=""><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+                </StackPanel>
+                <DockPanel Grid.Row="2" Margin="7,0,0,4">
+                    <Button x:Name="SearchButton" Content="⌕" DockPanel.Dock="Right" Width="27" MinHeight="26" Padding="0" Style="{StaticResource QuietButton}" Click="FocusSearch" ToolTip="Search chats" AutomationProperties.Name="Show chat search" />
+                    <Button DockPanel.Dock="Right" Width="27" MinHeight="26" Padding="0" Style="{StaticResource QuietButton}" Click="MoreChats" IsEnabled="{Binding CanLoadMore}" ToolTip="Load more saved chats" AutomationProperties.Name="Load more chats">
+                        <Path Data="M 2,2 L 12,2 M 2,5 L 12,5 M 7,8 L 7,14 M 4,11 L 7,14 L 10,11" Width="10" Height="10" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                    </Button>
+                    <Button DockPanel.Dock="Right" Width="27" MinHeight="26" Padding="0" Style="{StaticResource QuietButton}" Click="RefreshChats" IsEnabled="{Binding CanRefreshSessions}" ToolTip="Refresh this account's sessions" AutomationProperties.Name="Refresh session list">
+                        <Path Data="M 13,6 A 5.5,5.5 0 1 0 12.5,10 M 13,2 L 13,6 L 9,6" Width="10" Height="10" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                    </Button>
+                    <Button Content="+" DockPanel.Dock="Right" Style="{StaticResource QuietButton}" Click="NewProject" ToolTip="New project" Width="30" Padding="0" MinHeight="26" />
+                    <Button DockPanel.Dock="Right" Width="27" MinHeight="26" Padding="0" Click="UseLastActiveProjectOrder" ToolTip="Order projects by latest task start. Drag a project to use a custom order." AutomationProperties.Name="Order projects by latest task start">
+                        <Button.Style><Style TargetType="Button" BasedOn="{StaticResource QuietButton}"><Style.Triggers><DataTrigger Binding="{Binding OrderProjectsByLastActive}" Value="True"><Setter Property="Foreground" Value="{StaticResource AccentBrush}" /><Setter Property="Background" Value="{StaticResource AccentInkBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style>
+                        <Path Data="M 3,16 L 7,20 L 11,16 M 7,4 V 20 M 11,4 H 21 M 11,8 H 18 M 11,12 H 15" Width="12" Height="12" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.3" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                    </Button>
+                    <TextBlock Text="PROJECTS" FontSize="11" Foreground="{StaticResource FaintBrush}" VerticalAlignment="Center" />
+                </DockPanel>
+                <TextBox x:Name="SearchBox" Grid.Row="3" Margin="3,0,3,8" Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding IsSearchVisible, Converter={StaticResource BoolVisibility}}" GotKeyboardFocus="SearchFocused" LostKeyboardFocus="SearchUnfocused" PreviewKeyDown="SearchKeyDown" Padding="7,5" FontSize="11" AutomationProperties.Name="Search chats" ToolTip="Search chat or project names" />
+                <DockPanel Grid.Row="4">
+                    <TextBlock DockPanel.Dock="Top" Text="{Binding SessionListStatus}" ToolTip="{Binding SessionListDetails}" FontSize="10" Foreground="{StaticResource FaintBrush}" TextTrimming="CharacterEllipsis" Margin="7,0,4,6" />
+                <TreeView ItemsSource="{Binding SessionProjects}" SelectedItemChanged="SessionTreeSelectionChanged" PreviewMouseLeftButtonDown="ExpandProjectHeader" PreviewMouseLeftButtonUp="ExpandProjectHeader" PreviewMouseRightButtonDown="OpenTreeOptions" AutomationProperties.Name="Projects and other chats for this account">
+                    <TreeView.Resources>
+                        <HierarchicalDataTemplate DataType="{x:Type vm:SessionTreeNode}" ItemsSource="{Binding Children}">
+                            <Grid>
+                            <Grid ToolTip="{Binding Tooltip}" Background="Transparent" AllowDrop="True" PreviewMouseLeftButtonDown="ProjectDragStart" PreviewMouseLeftButtonUp="ProjectDragEnd" PreviewMouseMove="ProjectDragMove" PreviewDragOver="ProjectDragOver" PreviewDrop="ProjectDrop" PreviewDragLeave="ProjectDragLeave">
+                                <Grid.Style><Style TargetType="Grid"><Style.Triggers><DataTrigger Binding="{Binding IsLoadMore}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Grid.Style>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="20" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Grid Height="{Binding ActualHeight, ElementName=SessionLabel}" VerticalAlignment="Center">
+                                    <Grid.Style><Style TargetType="Grid"><Style.Triggers><DataTrigger Binding="{Binding IsDeleting}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger><DataTrigger Binding="{Binding IsArchiving}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Grid.Style>
+                                <TextBlock FontFamily="Segoe MDL2 Assets" VerticalAlignment="Top" Margin="0,2,0,0" FontSize="12">
+                                    <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="&#xE8B7;" /><Setter Property="Foreground" Value="{StaticResource AccentBrush}" /><Style.Triggers><DataTrigger Binding="{Binding IsSession}" Value="True"><Setter Property="Text" Value="&#xE8BD;" /><Setter Property="Foreground" Value="{StaticResource FaintBrush}" /></DataTrigger><DataTrigger Binding="{Binding HasDraft}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger><DataTrigger Binding="{Binding HasUnreadCompletion}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger><DataTrigger Binding="{Binding IsRunning}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger><DataTrigger Binding="{Binding IsPaused}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger><DataTrigger Binding="{Binding IsStopped}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger><DataTrigger Binding="{Binding IsSection}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                                </TextBlock>
+                                <Path Style="{StaticResource SessionSpinner}" Visibility="{Binding IsRunning, Converter={StaticResource BoolVisibility}}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="0,2,0,0" ToolTip="Task running" AutomationProperties.Name="Task running" />
+                                <Grid Width="14" Height="14" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="0,2,0,0" Visibility="{Binding IsPaused, Converter={StaticResource BoolVisibility}}" ToolTip="{Binding ActivityTooltip}" AutomationProperties.Name="{Binding Activity}">
+                                    <Ellipse Stroke="{StaticResource PausedTaskBrush}" StrokeThickness="1.4" />
+                                    <Path Data="M 5,4.5 L 5,9.5 M 9,4.5 L 9,9.5" Stroke="{StaticResource PausedTaskBrush}" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                </Grid>
+                                <Grid Width="14" Height="14" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="0,2,0,0" Visibility="{Binding IsStopped, Converter={StaticResource BoolVisibility}}" ToolTip="{Binding ActivityTooltip}" AutomationProperties.Name="{Binding Activity}">
+                                    <Ellipse Stroke="{StaticResource DangerBrush}" StrokeThickness="1.4" />
+                                    <Rectangle Width="5" Height="5" Fill="{StaticResource DangerBrush}" />
+                                </Grid>
+                                <Grid Width="14" Height="14" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="0,2,0,0" ToolTip="Task completed. Open chat to view." AutomationProperties.Name="Completed task, unread">
+                                    <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsSession}" Value="True" /><Condition Binding="{Binding HasUnreadCompletion}" Value="True" /><Condition Binding="{Binding IsRunning}" Value="False" /><Condition Binding="{Binding IsPaused}" Value="False" /><Condition Binding="{Binding IsStopped}" Value="False" /></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" /></MultiDataTrigger></Style.Triggers></Style></Grid.Style>
+                                    <Ellipse Stroke="{StaticResource GoodBrush}" StrokeThickness="1.4" />
+                                    <Path Data="M 3.5,7 L 6,9.5 L 10.5,4.5" Stroke="{StaticResource GoodBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                                </Grid>
+                                <Canvas Width="14" Height="14" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,2,0,0" ToolTip="Unsent draft" AutomationProperties.Name="Unsent draft">
+                                    <Canvas.Style><Style TargetType="Canvas"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsSession}" Value="True" /><Condition Binding="{Binding HasDraft}" Value="True" /><Condition Binding="{Binding HasUnreadCompletion}" Value="False" /><Condition Binding="{Binding IsRunning}" Value="False" /><Condition Binding="{Binding IsPaused}" Value="False" /><Condition Binding="{Binding IsStopped}" Value="False" /></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" /></MultiDataTrigger></Style.Triggers></Style></Canvas.Style>
+                                    <Path Data="M 1,1 L 13,1 L 13,10 L 6,10 L 3,13 L 3,10 L 1,10 Z" Stroke="{StaticResource FaintBrush}" StrokeThickness="1.2" StrokeLineJoin="Round" />
+                                    <Ellipse Canvas.Left="3.2" Canvas.Top="4.7" Width="1.6" Height="1.6" Fill="{StaticResource AccentBrush}" />
+                                    <Ellipse Canvas.Left="6.2" Canvas.Top="4.7" Width="1.6" Height="1.6" Fill="{StaticResource AccentBrush}" />
+                                    <Ellipse Canvas.Left="9.2" Canvas.Top="4.7" Width="1.6" Height="1.6" Fill="{StaticResource AccentBrush}" />
+                                </Canvas>
+                                </Grid>
+                                <Path Style="{StaticResource SessionSpinner}" Stroke="{StaticResource DangerBrush}" Visibility="{Binding IsDeleting, Converter={StaticResource BoolVisibility}}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="0,2,0,0" ToolTip="Deletion in progress…" AutomationProperties.Name="Deletion in progress" />
+                                <Path Style="{StaticResource SessionSpinner}" Stroke="{StaticResource PausedTaskBrush}" Visibility="{Binding IsArchiving, Converter={StaticResource BoolVisibility}}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="0,2,0,0" ToolTip="Archiving…" AutomationProperties.Name="Archiving" />
+                                <StackPanel x:Name="SessionLabel" VerticalAlignment="Center">
+                                    <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Grid.Column" Value="1" /><Style.Triggers><DataTrigger Binding="{Binding IsSection}" Value="True"><Setter Property="Grid.Column" Value="0" /><Setter Property="Grid.ColumnSpan" Value="2" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+                                    <TextBlock Text="{Binding Name}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="36" LineHeight="18">
+                                        <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="FontSize" Value="12" /><Setter Property="FontWeight" Value="Normal" /><Style.Triggers><DataTrigger Binding="{Binding IsProject}" Value="True"><Setter Property="FontWeight" Value="SemiBold" /></DataTrigger><DataTrigger Binding="{Binding IsSection}" Value="True"><Setter Property="FontSize" Value="11" /><Setter Property="Foreground" Value="{StaticResource FaintBrush}" /></DataTrigger><DataTrigger Binding="{Binding IsArchiving}" Value="True"><Setter Property="Foreground" Value="{StaticResource PausedTaskBrush}" /></DataTrigger><DataTrigger Binding="{Binding IsDeleting}" Value="True"><Setter Property="Foreground" Value="{StaticResource DangerBrush}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Detail}" Visibility="{Binding HasDetail, Converter={StaticResource BoolVisibility}}" Foreground="{StaticResource FaintBrush}" FontSize="10" TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top" Visibility="{Binding IsProject, Converter={StaticResource BoolVisibility}}">
+                                <Button Content="+" Style="{StaticResource QuietButton}" Padding="0" Width="24" MinHeight="25" Click="ProjectNewChat" IsEnabled="{Binding CanCreateChat}" ToolTip="New chat in this project" AutomationProperties.Name="New chat in project" />
+                                <Button Content="⋯" Style="{StaticResource QuietButton}" Padding="0" Width="24" MinHeight="25" VerticalAlignment="Top" Click="OpenProjectMenu" ToolTip="Project actions">
+                                    <Button.ContextMenu>
+                                        <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" Opened="PrepareProjectFolderMenu">
+                                            <MenuItem Header="{Binding OpenLabel}" Click="OpenTreeProject" />
+                                            <MenuItem Header="Open folder in Explorer" Tag="ProjectFolders" Click="OpenProjectFolder" />
+                                            <MenuItem Header="Open terminal" Tag="ProjectTerminal" Click="OpenProjectTerminalFolder" />
+                                            <MenuItem Header="New chat" Click="ProjectNewChat" IsEnabled="{Binding CanCreateChat}" />
+                                            <MenuItem Header="Manage folders…" Click="ManageFolders" IsEnabled="{Binding CanManageProject}" />
+                                            <MenuItem Header="{Binding ArchiveProjectLabel}" Click="ArchiveProject" IsEnabled="{Binding CanCreateChat}" ToolTip="{Binding ArchiveProjectTooltip}" />
+                                            <MenuItem Header="Archive chats older than 30 days" Click="ArchiveOldProjectChats" IsEnabled="{Binding CanCreateChat}" ToolTip="Archive chats whose last activity was more than 30 days ago." />
+                                            <MenuItem Header="Delete all archived chats…" Tag="DeleteArchived" Click="DeleteProjectArchivedChats" Foreground="{StaticResource DangerBrush}" IsEnabled="{Binding CanCreateChat}" Visibility="Collapsed" />
+                                            <MenuItem Header="Delete project…" Click="DeleteProject" Foreground="{StaticResource DangerBrush}" Visibility="{Binding CanDeleteProject, Converter={StaticResource BoolVisibility}}" />
+                                            <Separator /><MenuItem Header="New project…" Click="NewProject" />
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
+                                </Button>
+                                </StackPanel>
+                                <Button Grid.Column="2" Content="+" Style="{StaticResource QuietButton}" Padding="0" Width="24" MinHeight="25" VerticalAlignment="Top" Click="NewOtherChat" ToolTip="New chat in Documents\Codex" AutomationProperties.Name="New other chat" Visibility="{Binding IsSection, Converter={StaticResource BoolVisibility}}" />
+                                <Grid Grid.Column="2" Visibility="{Binding IsSession, Converter={StaticResource BoolVisibility}}">
+                                <Button DataContext="{Binding Session}" Content="⋯" Style="{StaticResource QuietButton}" Padding="0" Width="24" MinHeight="25" VerticalAlignment="Top" Click="OpenChatMenu" ToolTip="Chat actions">
+                                    <Button.ContextMenu>
+                                        <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                            <MenuItem Header="{Binding OpenLabel}" Click="OpenSession" />
+                                            <MenuItem Header="Open in new window" Click="OpenSessionWindow" />
+                                            <Separator />
+                                            <MenuItem Header="Rename…" Click="RenameChat" IsEnabled="{Binding CanManage}" />
+                                            <MenuItem Header="Duplicate / fork chat" Click="DuplicateChat" IsEnabled="{Binding CanManage}" />
+                                            <MenuItem Header="Pin / unpin" Click="PinChat" IsEnabled="{Binding CanManage}" />
+                                            <Separator />
+                                            <MenuItem Header="Stop task" Click="StopMenuTask" IsEnabled="{Binding CanManage}" />
+                                            <MenuItem Header="Archive / restore" Click="ArchiveChat" IsEnabled="{Binding CanManage}" />
+                                            <MenuItem Header="Archive this chat and all previous chats" Click="ArchivePreviousChats" IsEnabled="{Binding CanArchivePrevious}" ToolTip="Archive this chat and chats in the same project whose last activity is at or before this chat's." />
+                                            <Separator />
+                                            <MenuItem Header="Delete chat…" Click="DeleteChat" Foreground="{StaticResource DangerBrush}" IsEnabled="{Binding CanManage}" />
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
+                                </Button>
+                                </Grid>
+                            </Grid>
+                            <Button Content="Load more" Click="LoadMoreProjectSessions" Style="{StaticResource QuietButton}" Visibility="{Binding IsLoadMore, Converter={StaticResource BoolVisibility}}" HorizontalAlignment="Left" Padding="8,3" MinHeight="24" FontSize="11" Foreground="{StaticResource AccentBrush}" ToolTip="{Binding Tooltip}" AutomationProperties.Name="Load more project sessions" />
+                            </Grid>
+                        </HierarchicalDataTemplate>
+                    </TreeView.Resources>
+                </TreeView>
+                </DockPanel>
+                <StackPanel Grid.Row="5" Margin="0,10,0,0">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="⚙" Style="{StaticResource QuietButton}" Click="OpenSettings" ToolTip="Settings" Width="32" Padding="0">
+                        <Button.ContextMenu><ContextMenu><MenuItem Header="Codex instructions…" Click="EditCodexInstructions" /><Separator /><MenuItem Header="Reconnect" Click="Reconnect" /><MenuItem Header="Refresh usage" Click="RefreshUsage" /><MenuItem Header="Set up Windows sandbox…" Click="SetupSandbox" /><MenuItem Header="Choose Codex executable…" Click="ChooseCodex" /><Separator /><MenuItem Header="Clear temporary data…" Click="ClearTemporaryData" /><Separator /><MenuItem Header="About Mini Codex" Click="About" /><MenuItem Header="Exit" Click="Exit" /></ContextMenu></Button.ContextMenu>
+                    </Button>
+                    <Button Content="{Binding ArchiveLabel}" Style="{StaticResource QuietButton}" Click="ToggleArchived" HorizontalContentAlignment="Left" FontSize="11" />
+                </DockPanel>
+                <Button Content="Delete all archived chats…" Click="DeleteAllArchivedChats" Style="{StaticResource QuietButton}" Foreground="{StaticResource DangerBrush}" FontSize="11" HorizontalContentAlignment="Left" Visibility="{Binding ShowArchived, Converter={StaticResource BoolVisibility}}" IsEnabled="{Binding CanDeleteArchivedChats}" ToolTip="Delete archived chats across all projects in this account." />
+                </StackPanel>
+            </Grid>
+        </Border>
+        <Grid x:Name="ChatDropArea" Grid.Column="1" Background="Transparent" AllowDrop="True" PreviewDragEnter="ChatAttachmentDragOver" PreviewDragOver="ChatAttachmentDragOver" PreviewDragLeave="ChatAttachmentDragLeave" PreviewDrop="ChatAttachmentDrop">
+            <Grid.RowDefinitions><RowDefinition Height="61" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="22,10">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                        <Button Content="{Binding ApprovalLabel}" Click="ReviewApproval" Visibility="{Binding HasApprovals, Converter={StaticResource BoolVisibility}}" FontSize="11" Margin="0,0,8,0" />
+                        <Button Click="RefreshChat" Style="{StaticResource QuietButton}" Width="32" Padding="0" IsEnabled="{Binding HasChat}" ToolTip="Refresh chat" AutomationProperties.Name="Refresh chat">
+                            <Path Data="M 13,6 A 5.5,5.5 0 1 0 12.5,10 M 13,2 L 13,6 L 9,6" Width="14" Height="14" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.3" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                        </Button>
+                        <Button Click="StartCodeReview" Style="{StaticResource QuietButton}" Width="32" Padding="0" IsEnabled="{Binding CanReview}" ToolTip="Code review" AutomationProperties.Name="Code review">
+                            <Path Data="M 21,18 A 3,3 0 1 1 15,18 A 3,3 0 1 1 21,18 Z M 9,6 A 3,3 0 1 1 3,6 A 3,3 0 1 1 9,6 Z M 13,6 H 16 A 2,2 0 0 1 18,8 V 15 M 16,3 L 13,6 L 16,9 M 6,9 V 21" Width="14" Height="14" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.3" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                        </Button>
+                        <Button Click="ShowFind" Style="{StaticResource QuietButton}" Width="32" Padding="0" ToolTip="Find in loaded messages (Ctrl+F)" AutomationProperties.Name="Find in loaded messages">
+                            <Path Data="M 11,6 A 5,5 0 1 1 1,6 A 5,5 0 1 1 11,6 M 10,10 L 15,15" Width="14" Height="14" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.3" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                        </Button>
+                    </StackPanel>
+                    <StackPanel>
+                        <Grid>
+                            <Button x:Name="ChatNameButton" Click="RenameSelectedChat" Style="{StaticResource QuietButton}" IsEnabled="{Binding HasChat}" Padding="0" MinHeight="0" HorizontalContentAlignment="Stretch" Cursor="Hand" ToolTip="Rename chat" AutomationProperties.Name="Rename chat">
+                                <TextBlock Text="{Binding Heading}" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                            </Button>
+                            <TextBox x:Name="ChatNameInput" Visibility="Collapsed" DataContext="{Binding SelectedChat}" DataContextChanged="ChatNameContextChanged" FontWeight="Medium" Padding="0" BorderThickness="0,0,0,1" BorderBrush="{StaticResource AccentBrush}" Background="Transparent" PreviewKeyDown="ChatNameKeyDown" LostKeyboardFocus="ChatNameLostFocus" ToolTip="Enter saves. Escape cancels." AutomationProperties.Name="Chat name" />
+                        </Grid>
+                        <TextBlock Text="{Binding ProjectName}" Style="{StaticResource SecondaryText}" Margin="0,3,0,0" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+            <Grid Grid.Row="1" Margin="18,10,18,2">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                <StackPanel>
+                    <Button x:Name="LoadEarlierButton" Content="Load earlier" Click="LoadEarlier" Visibility="Collapsed" FontSize="11" HorizontalAlignment="Left" Margin="0,0,0,7" />
+                    <Border x:Name="FindBar" Visibility="Collapsed" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="6" Padding="6" Margin="0,0,0,8">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="×" Click="CloseFind" Width="26" Padding="0" Style="{StaticResource QuietButton}" ToolTip="Close find (Escape)" AutomationProperties.Name="Close find" />
+                            <Button DockPanel.Dock="Right" Content="↓" Click="FindNext" Width="26" Padding="0" Style="{StaticResource QuietButton}" ToolTip="Next match (Enter)" AutomationProperties.Name="Next match" />
+                            <Button DockPanel.Dock="Right" Content="↑" Click="FindPrevious" Width="26" Padding="0" Style="{StaticResource QuietButton}" ToolTip="Previous match (Shift+Enter)" AutomationProperties.Name="Previous match" />
+                            <TextBlock x:Name="FindCount" DockPanel.Dock="Right" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" Margin="8,0" />
+                            <TextBox x:Name="FindInput" TextChanged="FindChanged" PreviewKeyDown="FindInputKeyDown" MaxLength="500" MinWidth="90" AutomationProperties.Name="Find in loaded chat messages" />
+                        </DockPanel>
+                    </Border>
+                </StackPanel>
+                    <StackPanel Grid.Row="1" Visibility="{Binding ShowEmpty, Converter={StaticResource BoolVisibility}}" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="440" Margin="16">
+                        <TextBlock Text="⌘" FontSize="36" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Center" Margin="0,0,0,15" />
+                        <TextBlock Text="{Binding EmptyTitle}" FontSize="21" FontWeight="Medium" TextAlignment="Center" />
+                        <TextBlock Text="{Binding EmptyDescription}" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,10,0,20" LineHeight="21" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <Button Content="{Binding EmptyAction}" Click="EmptyAction" Style="{StaticResource AccentButton}" Margin="0,0,8,0" />
+                            <Button Content="Manage folders" Click="ManageFolders" IsEnabled="{Binding HasProject}" />
+                        </StackPanel>
+                    </StackPanel>
+                <ListBox x:Name="Transcript" Grid.Row="1" ItemsSource="{Binding DisplayMessages}" Visibility="{Binding HasMessages, Converter={StaticResource BoolVisibility}}" PreviewMouseWheel="TranscriptMouseWheel" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.ScrollChanged="TranscriptScrollChanged" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel" AutomationProperties.Name="Conversation">
+                    <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0,0,0,10" /><Setter Property="Focusable" Value="False" /><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><ContentPresenter /></ControlTemplate></Setter.Value></Setter></Style></ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate><DataTemplate>
+                        <presentation:ChatMessageSurface>
+                            <Border x:Name="MessageCard" Padding="10,7,28,7" Margin="0,0,16,0" CornerRadius="6" BorderBrush="{StaticResource LineBrush}" BorderThickness="0">
+                                <Grid>
+                                <StackPanel>
+                                    <DockPanel x:Name="MessageHeader" Margin="0,0,0,5">
+                                        <Button x:Name="CopyReply" Click="CopyMessage" DockPanel.Dock="Right" Style="{StaticResource CopyIconButton}" Opacity="0" ToolTip="Copy the full message" AutomationProperties.Name="Copy the full message" />
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Message.QuestionStatus}" FontSize="10" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="8,0" />
+                                        <TextBlock x:Name="MessageRole" Text="{Binding Message.DisplayRole}" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                    <ItemsControl ItemsSource="{Binding Message.Annotations}" ItemTemplate="{StaticResource SentAnnotationCard}" />
+                                    <ItemsControl ItemsSource="{Binding Message.Attachments}" ItemTemplate="{StaticResource AttachmentCard}">
+                                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                    </ItemsControl>
+                                    <ItemsControl ItemsSource="{Binding Message.Questions}" ItemTemplate="{StaticResource QuestionCard}" />
+                                    <presentation:MarkdownMessageView x:Name="MessageBody" Text="{Binding Message.DisplayText, Mode=OneWay}" IsStreaming="{Binding Message.IsStreaming}" FindText="{Binding DataContext.FindQuery, RelativeSource={RelativeSource AncestorType=views:AccountPane}}" Role="{Binding Role}" Mentions="{Binding DataContext.MentionEntries, RelativeSource={RelativeSource AncestorType=views:AccountPane}}" BaseDirectory="{Binding DataContext.PrimaryFolder, RelativeSource={RelativeSource AncestorType=views:AccountPane}}" AnnotationRequested="AnnotateSelection" AutomationProperties.Name="Message text" />
+                                </StackPanel>
+                                    <StackPanel x:Name="UserMessageActions" Orientation="Horizontal" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-3,-76,0">
+                                        <Button x:Name="EditUserReply" Click="EditMessage" Opacity="0" Width="26" MinHeight="24" Padding="6,3" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="Edit message">
+                                            <Button.Style><Style TargetType="Button" BasedOn="{StaticResource QuietButton}">
+                                                <Setter Property="IsEnabled" Value="False" />
+                                                <Setter Property="ToolTip" Value="{Binding Message.EditHint}" />
+                                                <Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding Message.CanEdit}" Value="True" />
+                                                    <Condition Binding="{Binding DataContext.CanEditMessages, RelativeSource={RelativeSource AncestorType=views:AccountPane}}" Value="True" />
+                                                </MultiDataTrigger.Conditions><Setter Property="IsEnabled" Value="True" /></MultiDataTrigger>
+                                                <DataTrigger Binding="{Binding Message.IsSteered}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                                <DataTrigger Binding="{Binding DataContext.Conversation.UsesTurnHistory, RelativeSource={RelativeSource AncestorType=views:AccountPane}}" Value="True"><Setter Property="ToolTip" Value="Editing is unavailable for this chat's older history format." /></DataTrigger>
+                                                </Style.Triggers>
+                                            </Style></Button.Style>
+                                            <Path Data="M 12,1 L 15,4 L 5,14 L 1,15 L 2,11 Z M 10,3 L 13,6" Width="12" Height="14" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.2" StrokeLineJoin="Round" />
+                                        </Button>
+                                        <Button x:Name="CopyUserReply" Click="CopyMessage" Style="{StaticResource CopyIconButton}" Opacity="0" ToolTip="Copy the full message" AutomationProperties.Name="Copy the full message" />
+                                        <Grid Width="18" Height="24" Visibility="{Binding Message.IsSteered, Converter={StaticResource BoolVisibility}}" ToolTip="Sent with Steer" AutomationProperties.Name="Sent with Steer">
+                                            <Path Data="M 2,2 V 7 Q 2,10 5,10 H 13 M 9,6 L 13,10 L 9,14" Width="12" Height="12" Stretch="Uniform" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.3" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <Expander x:Name="Activity" IsExpanded="{Binding Expanded, Mode=TwoWay}" Style="{StaticResource TerminalExpander}" Margin="0,0,16,0" Visibility="Collapsed">
+                                <Expander.Header>
+                                    <DockPanel>
+                                        <Button Click="CopyMessage" DockPanel.Dock="Right" Style="{StaticResource CopyIconButton}" ToolTip="Copy activity output" AutomationProperties.Name="Copy activity output" />
+                                        <TextBlock DockPanel.Dock="Left" Text="{Binding Heading}" Foreground="{StaticResource CodeLabelBrush}" FontSize="11" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        <TextBlock Text="{Binding Preview}" FontFamily="Consolas" FontSize="11" Foreground="{StaticResource FaintBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                </Expander.Header>
+                                <ItemsControl ItemsSource="{Binding Items}">
+                                    <ItemsControl.ItemTemplate><DataTemplate>
+                                        <StackPanel Margin="0,5,0,8">
+                                            <TextBlock Text="{Binding DisplayRole}" FontSize="10" Foreground="{StaticResource FaintBrush}" Margin="7,0,0,4" />
+                                            <presentation:MarkdownMessageView Text="{Binding Text, Mode=OneWay}" FindText="{Binding DataContext.FindQuery, RelativeSource={RelativeSource AncestorType=views:AccountPane}}" Role="{Binding Role}" BaseDirectory="{Binding DataContext.PrimaryFolder, RelativeSource={RelativeSource AncestorType=views:AccountPane}}" AnnotationRequested="AnnotateSelection" />
+                                        </StackPanel>
+                                    </DataTemplate></ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Expander>
+                        </presentation:ChatMessageSurface>
+                        <DataTemplate.Triggers>
+                            <Trigger SourceName="MessageCard" Property="IsMouseOver" Value="True"><Setter TargetName="CopyReply" Property="Opacity" Value="1" /><Setter TargetName="CopyUserReply" Property="Opacity" Value="1" /><Setter TargetName="EditUserReply" Property="Opacity" Value="1" /></Trigger>
+                            <Trigger SourceName="MessageCard" Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="CopyReply" Property="Opacity" Value="1" /><Setter TargetName="CopyUserReply" Property="Opacity" Value="1" /><Setter TargetName="EditUserReply" Property="Opacity" Value="1" /></Trigger>
+                            <DataTrigger Binding="{Binding Role}" Value="You"><Setter TargetName="MessageCard" Property="Background" Value="{StaticResource UserMessageBrush}" /><Setter TargetName="MessageCard" Property="BorderThickness" Value="1" /><Setter TargetName="MessageCard" Property="Margin" Value="36,0,0,0" /><Setter TargetName="MessageCard" Property="Padding" Value="20,10,88,10" /><Setter TargetName="MessageHeader" Property="Visibility" Value="Collapsed" /><Setter TargetName="UserMessageActions" Property="Visibility" Value="Visible" /></DataTrigger>
+                            <DataTrigger Binding="{Binding IsActivity}" Value="True"><Setter TargetName="MessageCard" Property="Visibility" Value="Collapsed" /><Setter TargetName="Activity" Property="Visibility" Value="Visible" /></DataTrigger>
+                            <DataTrigger Binding="{Binding Role}" Value="Questions"><Setter TargetName="MessageBody" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                            <DataTrigger Binding="{Binding Message.HasQuestions}" Value="True"><Setter TargetName="MessageBody" Property="Visibility" Value="Collapsed" /></DataTrigger>
+                            <DataTrigger Binding="{Binding Role}" Value="Status"><Setter TargetName="MessageHeader" Property="Visibility" Value="Collapsed" /><Setter TargetName="MessageCard" Property="Padding" Value="8,2" /></DataTrigger>
+                            <DataTrigger Binding="{Binding Message.StatusTone}" Value="Warning"><Setter TargetName="MessageCard" Property="BorderBrush" Value="{StaticResource WarningBrush}" /><Setter TargetName="MessageCard" Property="BorderThickness" Value="2,0,0,0" /></DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate></ListBox.ItemTemplate>
+                </ListBox>
+                <Border Grid.Row="1" Panel.ZIndex="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,18,10" Padding="3" CornerRadius="8" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Visibility="{Binding HasMessages, Converter={StaticResource BoolVisibility}}">
+                    <Border.LayoutTransform><ScaleTransform ScaleX="0.5" ScaleY="0.5" /></Border.LayoutTransform>
+                    <StackPanel Orientation="Vertical">
+                        <Button x:Name="PreviousUserMessageButton" Click="PreviousUserMessage" IsEnabled="False" Style="{StaticResource QuietButton}" Width="32" Height="32" Padding="0" ToolTip="Previous user message (Alt+Up; loads earlier history when needed)" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="Previous user message" AutomationProperties.AcceleratorKey="Alt+Up">
+                            <Path Data="M 2,10 L 7,5 L 12,10" Width="12" Height="7" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                        </Button>
+                        <Button x:Name="NextUserMessageButton" Click="NextUserMessage" IsEnabled="False" Style="{StaticResource QuietButton}" Width="32" Height="32" Padding="0" ToolTip="Next user message (Alt+Down; loaded messages)" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="Next user message" AutomationProperties.AcceleratorKey="Alt+Down">
+                            <Path Data="M 2,5 L 7,10 L 12,5" Width="12" Height="7" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                        </Button>
+                        <Border Height="1" Margin="5,3" Background="{StaticResource LineBrush}" />
+                        <Button x:Name="ScrollToBottomButton" Click="JumpToBottom" IsEnabled="False" Style="{StaticResource QuietButton}" Width="32" Height="32" Padding="0" ToolTip="Scroll to bottom (Alt+Enter)" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="Scroll to bottom" AutomationProperties.AcceleratorKey="Alt+Enter">
+                            <Path Data="M 7,1 L 7,11 M 2,6 L 7,11 L 12,6 M 2,15 L 12,15" Width="14" Height="16" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                        </Button>
+                    </StackPanel>
+                </Border>
+                <TextBlock Grid.Row="2" Text="{Binding TranscriptNotice}" TextWrapping="Wrap" FontSize="10" Foreground="{StaticResource FaintBrush}">
+                    <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding TranscriptNotice}" Value=""><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                </TextBlock>
+            </Grid>
+            <StackPanel Grid.Row="2" Margin="22,0,22,0">
+                <Border Visibility="{Binding HasConflictPause, Converter={StaticResource BoolVisibility}}" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource PausedTaskBrush}" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,10" ToolTip="{Binding ConflictPauseTooltip}">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
+                            <Button Content="Continue" Click="ContinuePausedTask" IsEnabled="{Binding CanContinueTask}" Style="{StaticResource AccentButton}" Margin="0,0,6,0" ToolTip="Start a new turn in this conversation after the blocking task finishes. Codex is asked to reread the affected files." />
+                            <Button Content="Cancel" Click="CancelPausedTask" IsEnabled="{Binding CanCancelPausedTask}" ToolTip="Dismiss this paused task. Existing file changes and history are kept; queued messages stay paused." />
+                        </StackPanel>
+                        <TextBlock Text="{Binding ConflictPauseNotice}" Foreground="{StaticResource PausedTaskBrush}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    </DockPanel>
+                </Border>
+                <DockPanel Margin="1,0,1,4">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="14,0,0,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" ToolTip="{Binding ContextTooltip}" AutomationProperties.Name="{Binding Context}">
+                            <TextBlock Text="Context used " FontSize="11" Foreground="{StaticResource FaintBrush}" />
+                            <Grid VerticalAlignment="Center">
+                                <TextBlock Text="{Binding ContextUsed}" FontSize="11" Foreground="{StaticResource FaintBrush}">
+                                    <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding IsCompacting}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                                </TextBlock>
+                                <Path Style="{StaticResource SessionSpinner}" Width="11" Height="11" Stretch="Uniform" Stroke="{StaticResource AccentBrush}" Visibility="{Binding IsCompacting, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="Compacting context" />
+                            </Grid>
+                            <TextBlock Text="{Binding ContextCapacity, StringFormat=' / {0}'}" FontSize="11" Foreground="{StaticResource FaintBrush}" />
+                        </StackPanel>
+                        <Button Click="CompactContext" IsEnabled="{Binding CanCompact}" Style="{StaticResource QuietButton}" Width="24" Padding="0" MinHeight="23" Margin="6,0,0,0" ToolTip="Compact context: summarize older context in this chat. Available while idle; may consume usage. Context counts update when Codex reports them." AutomationProperties.Name="Compact context">
+                            <Path Data="M 1,11 L 5,7 M 1,7 L 5,7 L 5,11 M 11,1 L 7,5 M 7,1 L 7,5 L 11,5" Width="10" Height="10" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                        </Button>
+                    </StackPanel>
+                    <StackPanel x:Name="TaskProgressIndicator" Orientation="Horizontal" Visibility="Collapsed" VerticalAlignment="Center" AutomationProperties.Name="Task progress">
+                        <Grid Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center">
+                            <Path x:Name="TaskActivitySpinner" Style="{StaticResource SessionSpinner}" />
+                            <Path x:Name="TaskStateIcon" Width="14" Height="14" Stretch="Uniform" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Visibility="Collapsed" />
+                        </Grid>
+                        <TextBlock x:Name="TaskElapsedText" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,0,14,0" ToolTip="Elapsed time since this task was sent" />
+                        <TextBlock x:Name="ThinkingText" Foreground="{StaticResource MutedBrush}" FontSize="12" />
+                    </StackPanel>
+                </DockPanel>
+                <Border Style="{StaticResource ChatComposerSurface}">
+                    <StackPanel>
+                        <DockPanel Margin="0,0,0,6">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="8,0,0,0">
+                                <Button Content="{Binding QueueLabel}" Click="OpenQueue" Style="{StaticResource QuietButton}" FontSize="11" MinHeight="25" Padding="6,2" IsEnabled="{Binding HasChat}" />
+                                <TextBlock Text="/ skill · @ mention" Foreground="{StaticResource FaintBrush}" FontSize="10" VerticalAlignment="Center" Margin="6,0,0,0" />
+                            </StackPanel>
+                            <WrapPanel>
+                                <Button Click="ChooseAttachments" Style="{StaticResource QuietButton}" Width="28" MinHeight="25" Padding="0" IsEnabled="{Binding CanCompose}" ToolTip="Attach files or images" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="Attach files or images">
+                                    <Path Data="M 21.44,11.05 L 12.25,20.24 A 6,6 0 0 1 3.76,11.75 L 13.66,1.85 A 4,4 0 0 1 19.32,7.51 L 9.41,17.41 A 2,2 0 0 1 6.59,14.59 L 15.78,5.4" Width="12" Height="12" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                                </Button>
+                                <Button Click="OpenFileExplorer" Style="{StaticResource QuietButton}" Width="28" MinHeight="25" Padding="0" IsEnabled="{Binding HasProject}" ToolTip="Files &amp; folders" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="Files and folders">
+                                    <Path Data="M 2,5 L 2,3 Q 2,1 4,1 L 8,1 L 10,4 L 18,4 Q 20,4 20,6 L 20,15 Q 20,17 18,17 L 4,17 Q 2,17 2,15 Z" Width="12" Height="10" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" StrokeLineJoin="Round" />
+                                </Button>
+                                <Button Click="OpenCapabilityExplorer" Style="{StaticResource QuietButton}" Width="28" MinHeight="25" Padding="0" IsEnabled="{Binding HasProject}" ToolTip="Plugins &amp; skills" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="Plugins and skills">
+                                    <Path Data="M 2,3 L 6,3 C 5,0 11,0 10,3 L 14,3 L 14,7 C 17,6 17,12 14,11 L 14,15 L 10,15 C 11,12 5,12 6,15 L 2,15 L 2,11 C 5,12 5,6 2,7 Z" Width="12" Height="12" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.3" StrokeLineJoin="Round" />
+                                </Button>
+                            </WrapPanel>
+                        </DockPanel>
+                        <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                        <ItemsControl x:Name="DraftQuotes" ItemsSource="{Binding DraftAnnotations}">
+                            <ItemsControl.ItemTemplate><DataTemplate>
+                                <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="6" Padding="9" Margin="0,0,0,8">
+                                    <StackPanel>
+                                        <DockPanel><Button DockPanel.Dock="Right" Content="×" Click="RemoveAnnotation" Style="{StaticResource QuietButton}" MinHeight="24" Width="25" Padding="0" ToolTip="Remove annotation" /><ContentControl Content="{Binding}" ContentTemplate="{StaticResource QuoteCard}" /></DockPanel>
+                                        <TextBlock Text="Your comment" FontSize="10" Foreground="{StaticResource AccentBrush}" Margin="0,2,0,5" />
+                                        <TextBox x:Name="AnnotationComment" Text="{Binding Comment, UpdateSourceTrigger=PropertyChanged}" PreviewKeyDown="AnnotationCommentKeyDown" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="38" MaxHeight="120" MaxLength="8000" VerticalScrollBarVisibility="Auto" ToolTip="Enter confirms the comment. Shift+Enter adds a new line." AutomationProperties.Name="Comment on annotation" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate></ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ItemsControl ItemsSource="{Binding DraftAttachments}">
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate><DataTemplate><StackPanel><ContentControl Content="{Binding}" ContentTemplate="{StaticResource AttachmentCard}" /><Button Content="Remove" Click="RemoveAttachment" Style="{StaticResource QuietButton}" FontSize="10" MinHeight="22" Margin="0,0,6,6" /></StackPanel></DataTemplate></ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        </StackPanel>
+                        </ScrollViewer>
+                        <presentation:MentionInput x:Name="Composer" Style="{StaticResource ChatComposerInput}" References="{Binding MentionEntries}" Text="{Binding Draft, UpdateSourceTrigger=PropertyChanged}" PreviewKeyDown="ComposerKeyDown" TextChanged="ComposerTextChanged" SelectionChanged="ComposerSelectionChanged" IsEnabled="{Binding CanCompose}" AutomationProperties.Name="Message draft" />
+                        <Popup x:Name="MentionPopup" PlacementTarget="{Binding ElementName=Composer}" Placement="Top" StaysOpen="False" AllowsTransparency="True" PopupAnimation="None" Closed="MentionPopupClosed">
+                            <Border presentation:AppZoom.Enabled="True" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="6" Padding="6" Width="{Binding ActualWidth, ElementName=Composer}" MaxWidth="620">
+                                <StackPanel>
+                                    <ListBox x:Name="MentionList" MaxHeight="260" PreviewMouseLeftButtonUp="MentionClicked" PreviewKeyDown="MentionKeyDown" AutomationProperties.Name="Mention suggestions">
+                                        <ListBox.ItemTemplate><DataTemplate>
+                                            <StackPanel ToolTip="{Binding Tooltip}"><DockPanel><TextBlock DockPanel.Dock="Right" Text="{Binding KindLabel}" Foreground="{StaticResource AccentBrush}" FontSize="10" Margin="12,0,0,0" /><TextBlock Text="{Binding Name}" FontSize="12" TextTrimming="CharacterEllipsis" /></DockPanel><TextBlock Text="{Binding Detail}" Foreground="{StaticResource FaintBrush}" FontSize="10" TextTrimming="CharacterEllipsis" Margin="0,3,0,0" /></StackPanel>
+                                        </DataTemplate></ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <TextBlock x:Name="MentionNotice" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="7,6" />
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                        <DockPanel Margin="0,8,0,0">
+                            <Border DockPanel.Dock="Right" Background="{StaticResource AccentBrush}" CornerRadius="5" Height="32" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Click="SendMessage" Style="{StaticResource AccentButton}" Background="Transparent" Width="34" Padding="0" IsEnabled="{Binding ReadyToSend}" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="{Binding SendLabel}" AutomationProperties.HelpText="Enter activates this action. Shift+Enter adds a new line.">
+                                        <Button.ToolTip><StackPanel>
+                                            <TextBlock Text="{Binding SendLabel}" FontWeight="Medium" />
+                                            <TextBlock Text="Enter to send or resume; Shift+Enter for a new line." />
+                                            <TextBlock Text="While running, uses the selected Steer / Queue / Ask behavior." />
+                                        </StackPanel></Button.ToolTip>
+                                        <Path Width="13" Height="14" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round">
+                                            <Path.Style><Style TargetType="Path">
+                                                <Setter Property="Data" Value="M 7,13 L 7,1 M 2,6 L 7,1 L 12,6" />
+                                                <Style.Triggers><DataTrigger Binding="{Binding IsResumeAction}" Value="True">
+                                                    <Setter Property="Data" Value="M 3,1 L 13,7 L 3,13 Z" />
+                                                    <Setter Property="Fill" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                                </DataTrigger></Style.Triggers>
+                                            </Style></Path.Style>
+                                        </Path>
+                                    </Button>
+                                    <Border Width="1" Margin="0,7" Background="{StaticResource AccentInkBrush}" Opacity="0.2" />
+                                    <Button Click="OpenBusySendMenu" Style="{StaticResource AccentButton}" Background="Transparent" Width="24" Padding="0" ToolTip="{Binding BusySendMode, StringFormat='Send while running: {0}'}" AutomationProperties.Name="Send while running options">
+                                        <Path Data="M 1,1 L 5,5 L 9,1" Width="9" Height="5" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                                        <Button.ContextMenu><ContextMenu>
+                                            <MenuItem Header="Steer" Tag="Steer" IsCheckable="True" Click="SelectBusySendMode" ToolTip="Add instructions to the current running task." />
+                                            <MenuItem Header="Queue" Tag="Queue" IsCheckable="True" Click="SelectBusySendMode" ToolTip="Send after the running task completes successfully." />
+                                            <MenuItem Header="Ask" Tag="Ask" IsCheckable="True" Click="SelectBusySendMode" ToolTip="Choose Steer or Queue each time you send during a task." />
+                                        </ContextMenu></Button.ContextMenu>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                            <Button DockPanel.Dock="Right" Click="StopTask" IsEnabled="{Binding CanStop}" Width="32" Height="32" VerticalAlignment="Center" Padding="0" Margin="0,0,5,0" ToolTip="Stop task" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="Stop task">
+                                <Path Data="M 1,1 L 11,1 L 11,11 L 1,11 Z" Width="10" Height="10" Stretch="Uniform" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                            </Button>
+                            <Button x:Name="PredictButton" DockPanel.Dock="Right" Click="PredictNextMessage" Style="{StaticResource QuietButton}" Width="32" Padding="0" Margin="0,0,5,0" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Predict next messages using the selected model. Uses account usage. Open a chat with messages first." AutomationProperties.Name="Predict next message">
+                                <Grid>
+                                    <Path x:Name="PredictIcon" Data="M 7,1 L 8.6,5.4 L 13,7 L 8.6,8.6 L 7,13 L 5.4,8.6 L 1,7 L 5.4,5.4 Z M 13,0 L 13,4 M 11,2 L 15,2" Width="16" Height="16" Stretch="Uniform" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.2" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                    <Path x:Name="PredictSpinner" Style="{StaticResource SessionSpinner}" Visibility="Collapsed" />
+                                </Grid>
+                            </Button>
+                            <WrapPanel>
+                                <ComboBox Width="145" ItemsSource="{Binding Runtime.Models}" SelectedItem="{Binding SelectedModel}" DisplayMemberPath="Name" ToolTip="{Binding SelectedModel.Name}" Margin="0,0,6,0" FontSize="11" IsEnabled="{Binding CanConfigure}" AutomationProperties.Name="Model" />
+                                <ComboBox Width="91" ItemsSource="{Binding Efforts}" SelectedItem="{Binding Effort}" Margin="0,0,6,0" FontSize="11" IsEnabled="{Binding CanConfigure}" ToolTip="Reasoning preference for future Codex requests" AutomationProperties.Name="Reasoning effort" />
+                                <ToggleButton Style="{StaticResource SpeedToggle}" IsChecked="{Binding FastMode, Mode=TwoWay}" ToolTip="{Binding SpeedTooltip}" AutomationProperties.Name="Fast mode" AutomationProperties.HelpText="{Binding SpeedTooltip}" Margin="0,0,6,0" IsEnabled="{Binding CanConfigure}" />
+                                <ComboBox Width="120" ItemsSource="{Binding ApprovalModes}" SelectedItem="{Binding ApprovalMode}" FontSize="11" IsEnabled="{Binding CanConfigure}" ToolTip="Ask me prompts here. Auto approval uses Codex's reviewer and keeps the sandbox enabled." AutomationProperties.Name="Approval mode" />
+                            </WrapPanel>
+                        </DockPanel>
+                        <Popup x:Name="PredictionPopup" PlacementTarget="{Binding ElementName=Composer}" Placement="Top" StaysOpen="False" AllowsTransparency="True" PopupAnimation="None" Closed="PredictionPopupClosed">
+                            <Border presentation:AppZoom.Enabled="True" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="8" Padding="10" Width="{Binding ActualWidth, ElementName=Composer}" MinWidth="280" MaxWidth="560" Margin="0,0,0,6">
+                                <StackPanel>
+                                    <DockPanel Margin="2,0,0,6">
+                                        <Button DockPanel.Dock="Right" Content="×" Click="DismissPredictions" Style="{StaticResource QuietButton}" Width="24" MinHeight="24" Padding="0" ToolTip="Close predictions" AutomationProperties.Name="Close predictions" />
+                                        <TextBlock Text="Suggested next messages" FontSize="12" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                    <TextBlock x:Name="PredictionStatus" FontSize="11" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="2,0,2,6" />
+                                    <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                        <ItemsControl x:Name="PredictionItems" HorizontalContentAlignment="Stretch">
+                                            <ItemsControl.ItemTemplate><DataTemplate>
+                                                <Button Click="UsePrediction" HorizontalContentAlignment="Stretch" Background="{StaticResource SidebarBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="10,8" Margin="0,3" ToolTip="Append to your draft" AutomationProperties.Name="{Binding}">
+                                                    <TextBlock Text="{Binding}" TextWrapping="Wrap" FontSize="12" />
+                                                </Button>
+                                            </DataTemplate></ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                    <TextBlock Text="Select to append to your draft. Uses account usage." FontSize="10" Foreground="{StaticResource FaintBrush}" TextWrapping="Wrap" Margin="2,6,2,0" />
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+            <Border x:Name="ChatDropOverlay" Grid.RowSpan="3" Panel.ZIndex="10" Visibility="Collapsed" IsHitTestVisible="False" Background="#E617181B" BorderBrush="{StaticResource AccentBrush}" BorderThickness="2" CornerRadius="8" Margin="10" Padding="20">
+                <TextBlock x:Name="ChatDropHint" Text="Drop files or images to attach" FontSize="18" Foreground="{StaticResource AccentBrush}" TextAlignment="Center" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+        </Grid>
+        <Border Grid.Row="1" Grid.ColumnSpan="2" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="12,4">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right" Text="dstack codex" FontSize="11" Foreground="{StaticResource FaintBrush}" Margin="12,0,0,0" />
+                <TextBlock DockPanel.Dock="Left" Text="{Binding Runtime.Status}" FontSize="11" Margin="0,0,14,0"><TextBlock.ToolTip><StackPanel><TextBlock Text="Codex home" /><TextBlock Text="{Binding Runtime.HomePath}" /></StackPanel></TextBlock.ToolTip><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{StaticResource MutedBrush}" /><Style.Triggers><DataTrigger Binding="{Binding Runtime.Connected}" Value="False"><Setter Property="Foreground" Value="{StaticResource WarningBrush}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+                <TextBlock Text="{Binding SessionNotice}" FontSize="11" Foreground="{StaticResource WarningBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding SessionNotice}" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>
